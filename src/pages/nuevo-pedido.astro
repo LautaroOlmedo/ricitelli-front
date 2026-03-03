@@ -1,0 +1,405 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Nuevo Pedido">
+  <div class="flex flex-col min-h-full">
+
+    <!-- ── Pipeline ──────────────────────────────────────────── -->
+    <div class="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm px-8 py-5 shrink-0">
+      <div class="max-w-2xl mx-auto">
+        <div class="relative">
+          <!-- Track background -->
+          <div class="absolute inset-x-4.5 top-4 h-px bg-border"></div>
+          <!-- Track fill -->
+          <div
+            id="progress-fill"
+            class="absolute left-4.5 top-4 h-px bg-primary transition-all duration-500 ease-out"
+            style="width:0%"
+          ></div>
+          <!-- Dots -->
+          <div id="pipeline-steps" class="relative z-10 flex justify-between"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Chat messages ─────────────────────────────────────── -->
+    <div class="flex-1 px-8 py-6">
+      <div id="chat-messages" class="max-w-2xl mx-auto space-y-3"></div>
+    </div>
+
+    <!-- ── Input bar ─────────────────────────────────────────── -->
+    <div id="input-bar" class="sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur-sm px-8 py-4 shrink-0">
+      <div class="max-w-2xl mx-auto space-y-2">
+        <div class="flex gap-3 items-end">
+          <textarea
+            id="chat-input"
+            rows="2"
+            placeholder="Describí el pedido: cliente, varietal, nombre del vino, cantidad…"
+            class="flex-1 rounded-xl border border-input bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none transition-shadow"
+          ></textarea>
+          <button
+            id="btn-send"
+            class="rounded-xl bg-primary text-primary-foreground p-3.5 hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0"
+            title="Enviar"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-5">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <p class="text-xs text-muted-foreground">
+          Ej: "50 cajas de Zuccardi Malbec para Restaurante La Cava S.A." &nbsp;·&nbsp; <kbd class="font-mono bg-muted px-1 rounded text-[10px]">Enter</kbd> para enviar
+        </p>
+      </div>
+    </div>
+
+    <!-- ── Reset bar (shown after completion) ─────────────────── -->
+    <div id="reset-bar" class="hidden sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur-sm px-8 py-4 shrink-0">
+      <div class="max-w-2xl mx-auto">
+        <button
+          id="btn-reset"
+          class="inline-flex items-center gap-2 rounded-lg border border-input bg-background px-4 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M3 12a9 9 0 019-9 9 9 0 016.9 3.1L21 9M21 3v6h-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Nuevo Pedido
+        </button>
+      </div>
+    </div>
+
+  </div>
+</AppLayout>
+
+<script>
+  import { pedidoReducer, initialContext } from "@/lib/pedidoMachine";
+  import {
+    validarPedido,
+    procesarConLLM,
+    verificarVinosSinVestir,
+    verificarInsumos,
+  } from "@/lib/validaciones";
+  import type { PedidoContext, PedidoEstado } from "@/types/pedido";
+
+  // ── Types ────────────────────────────────────────────────────
+  interface ChatMsg {
+    id: string;
+    role: "user" | "system";
+    kind?: "thinking" | "text" | "data" | "status" | "result";
+    text?: string;
+    variant?: "info" | "success" | "warning" | "error";
+    data?: Record<string, string | undefined>;
+    outcome?: "finalizado" | "encolado";
+  }
+
+  // ── State ────────────────────────────────────────────────────
+  let ctx: PedidoContext = { ...initialContext };
+  let msgs: ChatMsg[] = [];
+  const uid = () => crypto.randomUUID();
+
+  // ── DOM refs ─────────────────────────────────────────────────
+  const $ = (id: string) => document.getElementById(id)!;
+  const chatMessages  = $("chat-messages");
+  const chatInput     = $("chat-input") as HTMLTextAreaElement;
+  const btnSend       = $("btn-send") as HTMLButtonElement;
+  const inputBar      = $("input-bar");
+  const resetBar      = $("reset-bar");
+  const pipelineSteps = $("pipeline-steps");
+  const progressFill  = $("progress-fill") as HTMLElement;
+
+  // ── Pipeline ─────────────────────────────────────────────────
+  // 5 steps map cleanly to the state machine (pending+checking_vinos = one "Vinos" step)
+  const STEPS = [
+    {
+      label: "Inicio",
+      estados: ["idle"] as PedidoEstado[],
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    },
+    {
+      label: "Procesando",
+      estados: ["validating"] as PedidoEstado[],
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    },
+    {
+      label: "Vinos",
+      estados: ["pending", "checking_vinos"] as PedidoEstado[],
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5"><path d="M8 22h8M12 11v11" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 3h14M7 3c0 3.5-2 6-2 8.5C5 14 8 16 12 16s7-2 7-4.5c0-2.5-2-5-2-8.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    },
+    {
+      label: "Insumos",
+      estados: ["checking_insumos"] as PedidoEstado[],
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    },
+    {
+      label: "Resultado",
+      estados: ["finalizado", "encolado"] as PedidoEstado[],
+      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    },
+  ];
+
+  function estadoToStep(e: PedidoEstado): number {
+    return STEPS.findIndex((s) => s.estados.includes(e));
+  }
+
+  function renderPipeline() {
+    const activeStep = estadoToStep(ctx.estado);
+    const isEncolado = ctx.estado === "encolado";
+    const isDone     = ctx.estado === "finalizado" || ctx.estado === "encolado";
+
+    chatInput.disabled = ctx.estado !== "idle";
+    btnSend.disabled   = ctx.estado !== "idle";
+    inputBar.classList.toggle("hidden", isDone);
+    resetBar.classList.toggle("hidden", !isDone);
+
+    // Progress bar: 0% at step 0, 100% at last step
+    const pct = activeStep < 0 ? 0 : (activeStep / (STEPS.length - 1)) * 100;
+    progressFill.style.width = `${pct}%`;
+
+    pipelineSteps.innerHTML = STEPS.map((step, i) => {
+      let status: "done" | "active" | "pending" | "error";
+      if      (i < activeStep)   status = "done";
+      else if (i === activeStep) status = isEncolado ? "error" : "active";
+      else                       status = "pending";
+
+      const dot: Record<typeof status, string> = {
+        done:    "bg-success border-success text-white",
+        active:  "bg-primary border-primary text-primary-foreground ring-4 ring-primary/20",
+        pending: "bg-card border-border text-muted-foreground",
+        error:   "bg-warning border-warning text-white",
+      };
+      const lbl: Record<typeof status, string> = {
+        done:    "text-success font-medium",
+        active:  "text-foreground font-semibold",
+        pending: "text-muted-foreground",
+        error:   "text-warning font-medium",
+      };
+      const iconHtml = status === "done"
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-3.5"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+        : step.icon;
+
+      return `
+        <div class="flex flex-col items-center gap-1.5">
+          <div class="size-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${dot[status]}">${iconHtml}</div>
+          <span class="text-[10px] whitespace-nowrap transition-colors ${lbl[status]}">${step.label}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // ── Chat helpers ─────────────────────────────────────────────
+  function pushMsg(m: Omit<ChatMsg, "id">): string {
+    const id = uid();
+    msgs.push({ id, ...m });
+    renderMessages();
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    return id;
+  }
+
+  function removeMsg(id: string) {
+    msgs = msgs.filter((m) => m.id !== id);
+    renderMessages();
+  }
+
+  function esc(s: string) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  const AVATAR = `<div class="size-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5 text-primary text-[11px] font-bold select-none">✦</div>`;
+
+  function renderMsg(m: ChatMsg): string {
+    if (m.role === "user") {
+      return `
+        <div class="flex justify-end">
+          <div class="max-w-sm rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">${esc(m.text ?? "")}</div>
+        </div>`;
+    }
+
+    if (m.kind === "thinking") {
+      return `
+        <div class="flex items-start gap-2.5">
+          ${AVATAR}
+          <div class="rounded-2xl rounded-tl-sm bg-card border border-border px-4 py-3">
+            <div class="flex gap-1.5 items-center">
+              <div class="size-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style="animation-delay:0ms"></div>
+              <div class="size-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style="animation-delay:150ms"></div>
+              <div class="size-1.5 rounded-full bg-muted-foreground/50 animate-bounce" style="animation-delay:300ms"></div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (m.kind === "text") {
+      return `
+        <div class="flex items-start gap-2.5">
+          ${AVATAR}
+          <div class="rounded-2xl rounded-tl-sm bg-card border border-border px-4 py-2.5 text-sm text-foreground max-w-sm leading-relaxed">${m.text ?? ""}</div>
+        </div>`;
+    }
+
+    if (m.kind === "data") {
+      const fields = Object.entries(m.data ?? {}).filter(([, v]) => v);
+      return `
+        <div class="flex items-start gap-2.5">
+          ${AVATAR}
+          <div class="rounded-2xl rounded-tl-sm bg-card border border-border overflow-hidden min-w-[260px]">
+            <div class="px-4 py-2.5 border-b border-border flex items-center gap-2 bg-muted/30">
+              <div class="size-1.5 rounded-full bg-success"></div>
+              <span class="text-xs font-semibold">Pedido detectado</span>
+            </div>
+            <div class="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-2.5">
+              ${fields.map(([k, v]) => `
+                <div>
+                  <p class="text-[10px] text-muted-foreground uppercase tracking-wider">${k}</p>
+                  <p class="text-sm font-medium mt-0.5">${esc(String(v))}</p>
+                </div>`).join("")}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (m.kind === "status") {
+      const map: Record<string, [string, string]> = {
+        success: ["✓", "text-success"],
+        warning: ["⚠", "text-warning"],
+        error:   ["✕", "text-destructive"],
+        info:    ["·", "text-muted-foreground"],
+      };
+      const [icon, cls] = map[m.variant ?? "info"] ?? map.info;
+      return `
+        <div class="pl-9 flex items-center gap-2 text-xs ${cls} py-0.5">
+          <span class="font-bold">${icon}</span><span>${m.text ?? ""}</span>
+        </div>`;
+    }
+
+    if (m.kind === "result") {
+      const ok = m.outcome === "finalizado";
+      return `
+        <div class="flex items-start gap-2.5">
+          ${AVATAR}
+          <div class="rounded-2xl rounded-tl-sm border overflow-hidden max-w-sm ${ok ? "border-success/30 bg-success/5" : "border-warning/30 bg-warning/5"}">
+            <div class="px-4 py-3">
+              <p class="text-sm font-semibold ${ok ? "text-success" : "text-warning"}">${ok ? "✓ Pedido finalizado" : "⚠ Pedido encolado"}</p>
+              <p class="text-xs text-muted-foreground mt-1 leading-relaxed">
+                ${ok
+                  ? "Insumos comprometidos y remito generados. El área de despacho fue notificada."
+                  : "Stock insuficiente. El pedido quedó guardado y se procesará cuando haya reposición."}
+              </p>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    return "";
+  }
+
+  function renderMessages() {
+    chatMessages.innerHTML = msgs.map(renderMsg).join("");
+  }
+
+  // ── Dispatch ─────────────────────────────────────────────────
+  function dispatch(event: Parameters<typeof pedidoReducer>[1]) {
+    ctx = pedidoReducer(ctx, event);
+    renderPipeline();
+    runSideEffects(event);
+  }
+
+  async function runSideEffects(event: Parameters<typeof pedidoReducer>[1]) {
+    const estado = ctx.estado;
+
+    // 1. LLM processing
+    if (event.type === "SUBMIT_LLM" && estado === "validating") {
+      const tid = pushMsg({ role: "system", kind: "thinking" });
+      const extracted = await procesarConLLM(ctx.llmText);
+      dispatch({ type: "LLM_PROCESSED", data: extracted });
+      removeMsg(tid);
+
+      pushMsg({
+        role: "system", kind: "data",
+        data: {
+          "Razón Social":    ctx.data.razonSocial   ?? undefined,
+          "Varietal":        ctx.data.varietal       ?? undefined,
+          "Nombre del Vino": ctx.data.nombreVino     ?? undefined,
+          "Cantidad":        ctx.data.cantidad ? `${ctx.data.cantidad} cajas` : undefined,
+          "Observaciones":   ctx.data.observaciones  ?? undefined,
+        },
+      });
+
+      const errors = validarPedido(ctx.data);
+      if (errors.length > 0) {
+        dispatch({ type: "VALIDATION_FAIL", errors });
+        pushMsg({ role: "system", kind: "text", text: "Faltan datos para procesar el pedido:" });
+        errors.forEach((e) => pushMsg({ role: "system", kind: "status", text: e, variant: "error" }));
+        pushMsg({ role: "system", kind: "text", text: "Completá los datos faltantes y enviá nuevamente." });
+      } else {
+        dispatch({ type: "VALIDATION_OK" });
+      }
+      return;
+    }
+
+    // 2. Validation OK → check vinos
+    if (event.type === "VALIDATION_OK" && estado === "pending") {
+      pushMsg({ role: "system", kind: "status", text: "Pedido registrado. Verificando stock de vinos sin vestir…", variant: "info" });
+      await new Promise((r) => setTimeout(r, 700));
+      const ok = await verificarVinosSinVestir();
+      if (ok) {
+        pushMsg({ role: "system", kind: "status", text: "Stock de vinos sin vestir: suficiente.", variant: "success" });
+        dispatch({ type: "VINOS_OK" });
+      } else {
+        pushMsg({ role: "system", kind: "status", text: "Stock de vinos sin vestir insuficiente — notificando a producción.", variant: "warning" });
+        dispatch({ type: "VINOS_INSUFICIENTE" });
+      }
+      return;
+    }
+
+    // 3. Vinos OK → check insumos
+    if (event.type === "VINOS_OK" && estado === "checking_insumos") {
+      pushMsg({ role: "system", kind: "status", text: "Verificando stock de insumos secos…", variant: "info" });
+      const ok = await verificarInsumos();
+      if (ok) {
+        pushMsg({ role: "system", kind: "status", text: "Insumos secos: suficientes.", variant: "success" });
+        dispatch({ type: "INSUMOS_OK" });
+      } else {
+        pushMsg({ role: "system", kind: "status", text: "Insumos secos insuficientes — notificando a compras.", variant: "warning" });
+        dispatch({ type: "INSUMOS_INSUFICIENTE" });
+      }
+      return;
+    }
+
+    // 4. Done
+    if (estado === "finalizado" || estado === "encolado") {
+      pushMsg({ role: "system", kind: "result", outcome: estado });
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    }
+  }
+
+  // ── Event listeners ──────────────────────────────────────────
+  function handleSend() {
+    const text = chatInput.value.trim();
+    if (!text || ctx.estado !== "idle") return;
+    chatInput.value = "";
+    pushMsg({ role: "user", text });
+    dispatch({ type: "SUBMIT_LLM", text });
+  }
+
+  btnSend.addEventListener("click", handleSend);
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  });
+
+  $("btn-reset").addEventListener("click", () => {
+    ctx = { ...initialContext };
+    msgs = [];
+    chatInput.value = "";
+    renderPipeline();
+    renderMessages();
+    pushMsg({ role: "system", kind: "text", text: "¿Con qué otro pedido te ayudo?" });
+  });
+
+  // ── Init ─────────────────────────────────────────────────────
+  renderPipeline();
+  pushMsg({
+    role: "system", kind: "text",
+    text: "Hola, soy el asistente de pedidos. Describí lo que necesitás y me encargo del resto.",
+  });
+</script>

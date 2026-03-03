@@ -1,0 +1,266 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Nuevo Producto">
+  <div class="px-8 py-8 max-w-2xl mx-auto">
+
+    <!-- ── Breadcrumb ──────────────────────────────────── -->
+    <nav class="flex items-center gap-2 text-sm text-muted-foreground mb-8">
+      <a href="/products" class="hover:text-foreground transition-colors">Productos</a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+        <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="text-foreground font-medium">Nuevo producto</span>
+    </nav>
+
+    <!-- ── Header ──────────────────────────────────────── -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-semibold tracking-tight">Nuevo Producto</h1>
+      <p class="text-sm text-muted-foreground mt-1">
+        Definí el nombre y la lista de materiales (BOM) requeridos para fabricar este producto.
+      </p>
+    </div>
+
+    <!-- ── Form ────────────────────────────────────────── -->
+    <form id="product-form" novalidate class="space-y-8">
+
+      <!-- Name -->
+      <div class="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div>
+          <h2 class="text-sm font-semibold">Información general</h2>
+          <p class="text-xs text-muted-foreground mt-0.5">Identificación del producto en el catálogo</p>
+        </div>
+        <div class="space-y-1.5">
+          <label for="product-name" class="text-sm font-medium">
+            Nombre del Producto
+            <span class="text-destructive ml-0.5">*</span>
+          </label>
+          <input
+            id="product-name"
+            type="text"
+            placeholder="Ej: Etiqueta Gran Reserva Malbec 750ml"
+            autocomplete="off"
+            class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          />
+          <p id="name-error" class="hidden text-xs text-destructive mt-1">El nombre es obligatorio.</p>
+        </div>
+      </div>
+
+      <!-- BOM -->
+      <div class="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 class="text-sm font-semibold">Lista de Materiales (BOM)</h2>
+            <p class="text-xs text-muted-foreground mt-0.5">
+              Insumos secos necesarios por unidad fabricada
+            </p>
+          </div>
+          <span id="bom-count-badge" class="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2.5 py-0.5 text-xs font-medium">
+            0 items
+          </span>
+        </div>
+
+        <!-- Column headers -->
+        <div class="grid grid-cols-[1fr_100px_36px] gap-2.5 px-1">
+          <p class="text-xs font-medium text-muted-foreground">ID Insumo Seco</p>
+          <p class="text-xs font-medium text-muted-foreground text-center">Cant. / unidad</p>
+          <span></span>
+        </div>
+
+        <!-- Rows -->
+        <div id="bom-rows" class="space-y-2.5 min-h-[40px]">
+          <!-- Rows injected by JS -->
+        </div>
+
+        <!-- Empty BOM hint -->
+        <p id="bom-empty-hint" class="text-xs text-muted-foreground italic">
+          Sin materiales. Agregá al menos uno si corresponde.
+        </p>
+
+        <!-- Add row button -->
+        <button
+          type="button"
+          id="btn-add-bom"
+          class="inline-flex items-center gap-2 rounded-lg border border-dashed border-input px-4 py-2 text-sm text-muted-foreground hover:border-foreground hover:text-foreground hover:bg-muted/30 transition-colors w-full justify-center"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          Agregar insumo
+        </button>
+      </div>
+
+      <!-- Feedback banner -->
+      <div id="form-feedback" class="hidden rounded-lg p-4 text-sm font-medium"></div>
+
+      <!-- Actions -->
+      <div class="flex items-center justify-between pt-1">
+        <a
+          href="/products"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M19 12H5M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Cancelar
+        </a>
+
+        <button
+          type="submit"
+          id="btn-submit"
+          class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+        >
+          <svg id="submit-spinner" class="hidden size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <span id="submit-label">Crear Producto</span>
+        </button>
+      </div>
+
+    </form>
+  </div>
+</AppLayout>
+
+<script>
+  // ── BOM row builder ─────────────────────────────────────────
+  let rowIdx = 0;
+
+  function updateBOMCounter() {
+    const count = document.querySelectorAll(".bom-row").length;
+    const badge = document.getElementById("bom-count-badge")!;
+    const hint  = document.getElementById("bom-empty-hint")!;
+    badge.textContent = `${count} ${count === 1 ? "item" : "items"}`;
+    hint.style.display = count === 0 ? "" : "none";
+  }
+
+  function createBOMRow(): HTMLElement {
+    const i = rowIdx++;
+    const row = document.createElement("div");
+    row.className = "bom-row grid grid-cols-[1fr_100px_36px] gap-2.5 items-center";
+    row.innerHTML = `
+      <input
+        type="text"
+        name="bom_supply_${i}"
+        placeholder="ej: cap-tapas-plata"
+        autocomplete="off"
+        class="rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <input
+        type="number"
+        name="bom_qty_${i}"
+        min="1"
+        value="1"
+        class="rounded-lg border border-input bg-background px-2 py-2 text-sm text-center placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+      <button
+        type="button"
+        class="btn-remove size-9 rounded-lg border border-input bg-background text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-colors flex items-center justify-center shrink-0"
+        title="Eliminar fila"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+          <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round"/>
+        </svg>
+      </button>
+    `;
+    row.querySelector(".btn-remove")!.addEventListener("click", () => {
+      row.remove();
+      updateBOMCounter();
+    });
+    return row;
+  }
+
+  const bomContainer = document.getElementById("bom-rows")!;
+  document.getElementById("btn-add-bom")!.addEventListener("click", () => {
+    bomContainer.appendChild(createBOMRow());
+    updateBOMCounter();
+    // Focus the new supply input
+    const inputs = bomContainer.querySelectorAll<HTMLInputElement>(".bom-row:last-child input");
+    inputs[0]?.focus();
+  });
+
+  updateBOMCounter();
+
+  // ── Form submit ─────────────────────────────────────────────
+  const form       = document.getElementById("product-form")!;
+  const feedback   = document.getElementById("form-feedback")!;
+  const btnSubmit  = document.getElementById("btn-submit") as HTMLButtonElement;
+  const spinner    = document.getElementById("submit-spinner")!;
+  const submitLabel = document.getElementById("submit-label")!;
+  const nameInput  = document.getElementById("product-name") as HTMLInputElement;
+  const nameError  = document.getElementById("name-error")!;
+
+  function showError(msg: string) {
+    feedback.className =
+      "rounded-lg p-4 text-sm font-medium border border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-2";
+    feedback.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 shrink-0">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="15" y1="9" x2="9" y2="15" stroke-linecap="round"/>
+        <line x1="9" y1="9" x2="15" y2="15" stroke-linecap="round"/>
+      </svg>
+      <span>${msg}</span>
+    `;
+    feedback.classList.remove("hidden");
+    feedback.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function setLoading(on: boolean) {
+    btnSubmit.disabled = on;
+    spinner.classList.toggle("hidden", !on);
+    submitLabel.textContent = on ? "Creando…" : "Crear Producto";
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    feedback.classList.add("hidden");
+
+    // Client-side validation
+    const name = nameInput.value.trim();
+    if (!name) {
+      nameError.classList.remove("hidden");
+      nameInput.focus();
+      return;
+    }
+    nameError.classList.add("hidden");
+
+    // Collect BOM
+    const bom: Array<{ dry_supply_id: string; quantity_per_unit: number }> = [];
+    document.querySelectorAll<HTMLElement>(".bom-row").forEach((row) => {
+      const inputs = row.querySelectorAll<HTMLInputElement>("input");
+      const supplyId = inputs[0]?.value.trim();
+      const qty = parseInt(inputs[1]?.value ?? "1", 10);
+      if (supplyId && qty > 0) {
+        bom.push({ dry_supply_id: supplyId, quantity_per_unit: qty });
+      }
+    });
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, bom }),
+      });
+
+      if (res.status === 201) {
+        window.location.href = "/products";
+        return;
+      }
+
+      const body = await res.json().catch(() => ({}));
+      showError(body.error ?? `Error ${res.status} al crear el producto`);
+    } catch {
+      showError("Error de red. Verificá que el servidor esté disponible.");
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // Clear name error on input
+  nameInput.addEventListener("input", () => {
+    if (nameInput.value.trim()) nameError.classList.add("hidden");
+  });
+</script>

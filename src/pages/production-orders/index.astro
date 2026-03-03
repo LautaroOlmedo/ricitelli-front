@@ -1,0 +1,103 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getProductionOrders } from "@/lib/grpc/productionOrderClient";
+
+let orders: any[] = [];
+let error = "";
+try {
+  orders = await getProductionOrders();
+} catch (e: any) {
+  error = e.message;
+}
+
+const statusColor: Record<string, string> = {
+  pending:    "bg-yellow-100 text-yellow-800",
+  processing: "bg-blue-100 text-blue-800",
+  completed:  "bg-green-100 text-green-800",
+  cancelled:  "bg-red-100 text-red-800",
+};
+---
+
+<AppLayout title="Órdenes de Producción">
+  <div class="px-8 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Órdenes de Producción</h1>
+        <p class="text-sm text-muted-foreground mt-1">
+          {error ? "Error al cargar" : `${orders.length} orden${orders.length !== 1 ? "es" : ""} registrada${orders.length !== 1 ? "s" : ""}`}
+        </p>
+      </div>
+      <a
+        href="/sale-orders/new"
+        class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+          <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+        </svg>
+        Nuevo Pedido
+      </a>
+    </div>
+
+    {error && (
+      <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive mb-6">
+        {error}
+      </div>
+    )}
+
+    {!error && orders.length === 0 && (
+      <div class="rounded-xl border border-border bg-card p-12 text-center">
+        <p class="text-muted-foreground text-sm">
+          No hay órdenes de producción. Se generan automáticamente al crear un pedido de venta.
+        </p>
+        <a href="/sale-orders/new" class="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+          Crear un pedido de venta
+        </a>
+      </div>
+    )}
+
+    {orders.length > 0 && (
+      <div class="rounded-xl border border-border bg-card overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="border-b border-border bg-muted/40">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">ID</th>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Pedido Venta</th>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Estado</th>
+              <th class="text-right px-4 py-3 font-medium text-muted-foreground">Items</th>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Creado</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border">
+            {orders.map((o) => (
+              <tr class="hover:bg-muted/30 transition-colors">
+                <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{o.id}</td>
+                <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{o.sale_order_id}</td>
+                <td class="px-4 py-3">
+                  <span class:list={[
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                    statusColor[o.status] ?? "bg-secondary text-secondary-foreground"
+                  ]}>
+                    {o.status || "—"}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-right">{o.items?.length ?? 0}</td>
+                <td class="px-4 py-3 text-muted-foreground text-xs">{o.created_at || "—"}</td>
+                <td class="px-4 py-3">
+                  <a
+                    href={`/production-orders/${o.id}`}
+                    class="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Ver detalle →
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+</AppLayout>

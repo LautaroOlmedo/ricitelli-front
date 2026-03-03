@@ -1,0 +1,91 @@
+---
+import "@/styles/global.css";
+
+interface Props {
+  title?: string;
+}
+
+const { title = "Bodega" } = Astro.props;
+const pathname = new URL(Astro.request.url).pathname;
+
+const nav = [
+  {
+    href: "/products",
+    label: "Productos",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 3H8L6 7h12l-2-4z" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  },
+  {
+    href: "/sale-orders",
+    label: "Pedidos de Venta",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke-linecap="round" stroke-linejoin="round"/><rect x="9" y="3" width="6" height="4" rx="1" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12h6M9 16h4" stroke-linecap="round"/></svg>`,
+  },
+  {
+    href: "/production-orders",
+    label: "Producción",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  },
+];
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} — Bodega</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="min-h-screen bg-background text-foreground antialiased">
+    <div class="flex min-h-screen">
+
+      <!-- ── Sidebar ────────────────────────────────────── -->
+      <aside class="w-[220px] shrink-0 border-r border-border bg-card flex flex-col">
+
+        <!-- Logo -->
+        <a href="/" class="flex items-center gap-3 px-5 py-5 border-b border-border hover:bg-muted/40 transition-colors">
+          <div class="size-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 text-primary-foreground">
+              <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold leading-none">Bodega</p>
+            <p class="text-[10px] text-muted-foreground mt-0.5">Gestión</p>
+          </div>
+        </a>
+
+        <!-- Nav -->
+        <nav class="flex-1 p-3 space-y-0.5">
+          {nav.map((link) => {
+            const active = pathname.startsWith(link.href);
+            return (
+              <a
+                href={link.href}
+                class:list={[
+                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+                  active
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                ]}
+              >
+                <Fragment set:html={link.icon} />
+                {link.label}
+              </a>
+            );
+          })}
+        </nav>
+
+        <!-- Footer -->
+        <div class="px-5 py-4 border-t border-border">
+          <p class="text-[11px] text-muted-foreground">v0.1.0 · SSR + gRPC</p>
+        </div>
+      </aside>
+
+      <!-- ── Content ─────────────────────────────────────── -->
+      <main class="flex-1 min-w-0 overflow-auto">
+        <slot />
+      </main>
+
+    </div>
+  </body>
+</html>

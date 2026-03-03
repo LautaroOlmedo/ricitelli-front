@@ -1,0 +1,101 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getProductionOrderByID } from "@/lib/grpc/productionOrderClient";
+
+const { id } = Astro.params;
+let order: any = null;
+let error = "";
+
+try {
+  order = await getProductionOrderByID(id!);
+} catch (e: any) {
+  error = e.message;
+}
+---
+
+<AppLayout title="Orden de Producción">
+  <div class="px-8 py-8 max-w-4xl">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-muted-foreground mb-8">
+      <a href="/production-orders" class="hover:text-foreground transition-colors">Órdenes de Producción</a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+        <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="text-foreground font-medium font-mono text-xs">{id}</span>
+    </nav>
+
+    {error && (
+      <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        {error}
+      </div>
+    )}
+
+    {order && (
+      <div class="space-y-6">
+
+        <!-- Summary card -->
+        <div class="rounded-xl border border-border bg-card p-6">
+          <h1 class="text-lg font-semibold mb-4">Detalle de Orden de Producción</h1>
+          <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="text-muted-foreground">ID</dt>
+              <dd class="font-mono text-xs mt-0.5">{order.id}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Pedido de Venta</dt>
+              <dd class="font-mono text-xs mt-0.5">{order.sale_order_id}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Estado</dt>
+              <dd class="mt-0.5">
+                <span class="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-medium">
+                  {order.status || "—"}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Creado</dt>
+              <dd class="mt-0.5">{order.created_at || "—"}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <!-- Items -->
+        {(order.items ?? []).length > 0 && (
+          <div class="rounded-xl border border-border bg-card overflow-hidden">
+            <div class="px-6 py-4 border-b border-border">
+              <h2 class="text-sm font-semibold">Items de Producción</h2>
+              <p class="text-xs text-muted-foreground mt-0.5">{order.items.length} producto{order.items.length !== 1 ? "s" : ""} a fabricar</p>
+            </div>
+            <div class="divide-y divide-border">
+              {order.items.map((item: any) => (
+                <div class="px-6 py-4 space-y-3">
+                  <div class="flex items-center justify-between text-sm">
+                    <div>
+                      <span class="font-medium">Producto:</span>
+                      <span class="ml-2 font-mono text-xs text-muted-foreground">{item.product_id}</span>
+                    </div>
+                    <span class="text-muted-foreground">Cant: <strong>{item.quantity}</strong></span>
+                  </div>
+
+                  {(item.requirements ?? []).length > 0 && (
+                    <div class="ml-4 pl-4 border-l border-border space-y-1">
+                      <p class="text-xs font-medium text-muted-foreground mb-2">Requerimientos de materiales:</p>
+                      {item.requirements.map((req: any) => (
+                        <div class="flex items-center justify-between text-xs text-muted-foreground">
+                          <span class="font-mono">{req.dry_supply_id}</span>
+                          <span>{req.quantity} unidades</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+</AppLayout>

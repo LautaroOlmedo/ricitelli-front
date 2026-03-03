@@ -1,0 +1,277 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getProducts } from "@/lib/grpc/productClient";
+import type { Product } from "@/lib/grpc/types";
+
+let products: Product[] = [];
+let loadError: string | null = null;
+
+try {
+  products = await getProducts();
+} catch (e: any) {
+  loadError = e.details ?? e.message ?? "Error al conectar con el servidor";
+}
+
+const totalBOM = products.reduce((n, p) => n + p.bom.length, 0);
+const avgBOM = products.length
+  ? (totalBOM / products.length).toFixed(1)
+  : "—";
+const grpcHost = process.env.GRPC_PRODUCT_HOST ?? "localhost:50051";
+---
+
+<AppLayout title="Productos">
+  <div class="px-8 py-8 max-w-5xl mx-auto">
+
+    <!-- ── Page header ─────────────────────────────────── -->
+    <div class="flex items-start justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Productos</h1>
+        <p class="text-sm text-muted-foreground mt-1">
+          Catálogo de productos fabricables con lista de materiales
+        </p>
+      </div>
+      <a
+        href="/products/new"
+        class="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+          <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+        </svg>
+        Nuevo producto
+      </a>
+    </div>
+
+    <!-- ── Stats ───────────────────────────────────────── -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      {[
+        { label: "Productos totales",  value: String(products.length), sub: "en catálogo" },
+        { label: "Insumos en BOM",     value: String(totalBOM),        sub: "referencias únicas" },
+        { label: "Promedio BOM",       value: avgBOM,                  sub: "insumos/producto" },
+      ].map(({ label, value, sub }) => (
+        <div class="rounded-xl border border-border bg-card p-5">
+          <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {label}
+          </p>
+          <p class="mt-2 text-3xl font-bold tracking-tight">{value}</p>
+          <p class="text-xs text-muted-foreground mt-1">{sub}</p>
+        </div>
+      ))}
+    </div>
+
+    <!-- ── Error state ─────────────────────────────────── -->
+    {loadError && (
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
+        <div class="size-10 rounded-full bg-destructive/15 flex items-center justify-center mx-auto mb-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-5 text-destructive">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12" stroke-linecap="round"/>
+            <line x1="12" y1="16" x2="12.01" y2="16" stroke-linecap="round" stroke-width="2.5"/>
+          </svg>
+        </div>
+        <h3 class="font-semibold text-sm text-destructive">No se pudo conectar con el servidor gRPC</h3>
+        <p class="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">{loadError}</p>
+        <p class="text-xs text-muted-foreground mt-2">
+          Verificá que el servidor esté corriendo en
+          <code class="font-mono bg-muted px-1 py-0.5 rounded">{grpcHost}</code>
+        </p>
+        <button
+          onclick="window.location.reload()"
+          class="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+        >
+          Reintentar
+        </button>
+      </div>
+    )}
+
+    <!-- ── Empty state ─────────────────────────────────── -->
+    {!loadError && products.length === 0 && (
+      <div class="rounded-xl border border-border bg-card p-14 text-center">
+        <div class="size-14 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-7 text-muted-foreground">
+            <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M16 3H8L6 7h12l-2-4z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3 class="font-semibold">Sin productos</h3>
+        <p class="text-sm text-muted-foreground mt-1.5 max-w-xs mx-auto">
+          Todavía no hay productos en el catálogo. Creá el primero para comenzar.
+        </p>
+        <a
+          href="/products/new"
+          class="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          Crear primer producto
+        </a>
+      </div>
+    )}
+
+    <!-- ── Products table ─────────────────────────────── -->
+    {!loadError && products.length > 0 && (
+      <div class="rounded-xl border border-border bg-card overflow-hidden">
+
+        <!-- Toolbar -->
+        <div class="flex items-center gap-3 px-5 py-3.5 border-b border-border">
+          <div class="relative flex-1 max-w-xs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" stroke-linecap="round"/>
+            </svg>
+            <input
+              id="search-input"
+              type="text"
+              placeholder="Buscar por nombre o insumo…"
+              class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <span id="row-count" class="text-xs text-muted-foreground ml-auto shrink-0">
+            {products.length} {products.length === 1 ? "producto" : "productos"}
+          </span>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-muted/30 border-b border-border">
+              <tr>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Nombre
+                </th>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Materiales BOM
+                </th>
+                <th class="px-5 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-20">
+                  Items
+                </th>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">
+                  ID
+                </th>
+                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody id="products-tbody" class="divide-y divide-border">
+              {products.map((p) => (
+                <tr
+                  class="product-row group hover:bg-muted/30 transition-colors"
+                  data-name={p.name.toLowerCase()}
+                  data-bom={p.bom.map((b) => b.dry_supply_id).join(" ").toLowerCase()}
+                >
+                  <!-- Name -->
+                  <td class="px-5 py-4">
+                    <span class="font-medium">{p.name}</span>
+                  </td>
+
+                  <!-- BOM chips -->
+                  <td class="px-5 py-4">
+                    {p.bom.length === 0 ? (
+                      <span class="text-xs text-muted-foreground italic">Sin materiales</span>
+                    ) : (
+                      <div class="flex flex-wrap gap-1.5">
+                        {p.bom.map((item) => (
+                          <span
+                            class="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs font-mono"
+                            title={`ID: ${item.dry_supply_id}`}
+                          >
+                            <span class="text-muted-foreground max-w-[80px] truncate">{item.dry_supply_id.slice(0, 8)}</span>
+                            <span class="text-muted-foreground/60">×</span>
+                            <span class="font-semibold">{item.quantity_per_unit}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+
+                  <!-- BOM count badge -->
+                  <td class="px-5 py-4 text-center">
+                    <span class:list={[
+                      "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium",
+                      p.bom.length === 0
+                        ? "bg-muted text-muted-foreground"
+                        : "bg-secondary text-secondary-foreground"
+                    ]}>
+                      {p.bom.length}
+                    </span>
+                  </td>
+
+                  <!-- ID (truncated) -->
+                  <td class="px-5 py-4 hidden md:table-cell">
+                    <code
+                      class="text-xs text-muted-foreground font-mono cursor-default"
+                      title={p.id}
+                    >
+                      {p.id.slice(0, 8)}…
+                    </code>
+                  </td>
+
+                  <!-- Actions -->
+                  <td class="px-5 py-4 text-right">
+                    <a
+                      href={`/api/products/${p.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors opacity-0 group-hover:opacity-100"
+                      title="Ver como JSON"
+                    >
+                      JSON
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3">
+                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" stroke-linecap="round"/>
+                        <polyline points="15,3 21,3 21,9"/>
+                        <line x1="10" y1="14" x2="21" y2="3"/>
+                      </svg>
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Table footer -->
+        <div class="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
+          <p id="footer-count" class="text-xs text-muted-foreground">
+            {products.length} {products.length === 1 ? "producto" : "productos"}
+          </p>
+          <p class="text-xs text-muted-foreground">
+            gRPC · {grpcHost}
+          </p>
+        </div>
+      </div>
+    )}
+
+  </div>
+</AppLayout>
+
+<script>
+  const input  = document.getElementById("search-input")  as HTMLInputElement | null;
+  const tbody  = document.getElementById("products-tbody");
+  const badge  = document.getElementById("row-count");
+  const footer = document.getElementById("footer-count");
+
+  if (input && tbody) {
+    input.addEventListener("input", () => {
+      const q = input.value.trim().toLowerCase();
+      const rows = tbody.querySelectorAll<HTMLElement>(".product-row");
+      let visible = 0;
+
+      rows.forEach((row) => {
+        const match =
+          !q ||
+          (row.dataset.name ?? "").includes(q) ||
+          (row.dataset.bom ?? "").includes(q);
+        row.style.display = match ? "" : "none";
+        if (match) visible++;
+      });
+
+      const label = visible === 1 ? "producto" : "productos";
+      const suffix = q ? ` para "${q}"` : "";
+      const text = `${visible} ${label}${suffix}`;
+
+      if (badge)  badge.textContent  = text;
+      if (footer) footer.textContent = text;
+    });
+  }
+</script>
