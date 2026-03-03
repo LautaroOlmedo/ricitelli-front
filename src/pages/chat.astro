@@ -1,0 +1,334 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Asistente">
+  <div class="flex flex-col h-screen max-h-screen">
+
+    <!-- ── Header ──────────────────────────────────────────── -->
+    <div class="shrink-0 flex items-center justify-between px-6 py-4 border-b border-border bg-card">
+      <div class="flex items-center gap-3">
+        <div class="size-8 rounded-lg bg-primary flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 text-primary-foreground">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/>
+            <path d="M8 12h8M12 8v8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-semibold leading-none">Asistente Ricitelli</p>
+          <p id="status-label" class="text-[11px] text-muted-foreground mt-0.5">Listo</p>
+        </div>
+      </div>
+      <button
+        id="btn-clear"
+        class="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Limpiar chat
+      </button>
+    </div>
+
+    <!-- ── Messages area ───────────────────────────────────── -->
+    <div id="messages" class="flex-1 overflow-y-auto px-6 py-6 space-y-4 scroll-smooth">
+      <!-- Welcome -->
+      <div id="welcome" class="flex flex-col items-center justify-center py-16 text-center gap-4">
+        <div class="size-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-7 text-primary">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/>
+            <path d="M8 12h8M12 8v8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-base font-semibold">¿En qué te puedo ayudar?</p>
+          <p class="text-sm text-muted-foreground mt-1 max-w-sm">
+            Podés preguntarme sobre productos, pedidos de venta u órdenes de producción — o pedirme que cree uno nuevo.
+          </p>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2 mt-2">
+          {[
+            "¿Qué productos hay?",
+            "Listar pedidos de venta",
+            "¿Cuántas órdenes de producción hay?",
+            "Resumen del sistema",
+          ].map((s) => (
+            <button
+              class="suggestion rounded-full border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              data-text={s}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Input area ───────────────────────────────────────── -->
+    <div class="shrink-0 border-t border-border bg-card px-4 py-4">
+      <form id="chat-form" class="flex items-end gap-3 max-w-3xl mx-auto">
+        <div class="flex-1 relative">
+          <textarea
+            id="chat-input"
+            rows="1"
+            placeholder="Preguntá algo sobre productos, pedidos o producción…"
+            class="w-full rounded-xl border border-input bg-background px-4 py-3 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-hidden transition-shadow"
+            style="max-height: 160px;"
+          ></textarea>
+        </div>
+        <button
+          type="submit"
+          id="btn-send"
+          class="shrink-0 size-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <svg id="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg id="loading-icon" class="hidden size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+        </button>
+      </form>
+      <p class="text-center text-[11px] text-muted-foreground mt-2">
+        LLM: <span id="model-label" class="font-mono">Qwen2.5-Coder-32B</span> · <span id="grpc-label">gRPC :50051</span>
+      </p>
+    </div>
+
+  </div>
+</AppLayout>
+
+<script>
+  // ── State ────────────────────────────────────────────────
+  let history: any[] = [];      // Full OpenAI-format history (sent to server)
+  let isLoading = false;
+
+  // ── DOM refs ─────────────────────────────────────────────
+  const messagesEl   = document.getElementById("messages")!;
+  const welcome      = document.getElementById("welcome")!;
+  const form         = document.getElementById("chat-form")!;
+  const input        = document.getElementById("chat-input") as HTMLTextAreaElement;
+  const btnSend      = document.getElementById("btn-send") as HTMLButtonElement;
+  const sendIcon     = document.getElementById("send-icon")!;
+  const loadingIcon  = document.getElementById("loading-icon")!;
+  const statusLabel  = document.getElementById("status-label")!;
+
+  // ── Auto-resize textarea ─────────────────────────────────
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  });
+
+  // ── Suggestions ──────────────────────────────────────────
+  document.querySelectorAll<HTMLButtonElement>(".suggestion").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      input.value = btn.dataset.text ?? "";
+      input.dispatchEvent(new Event("input"));
+      input.focus();
+    });
+  });
+
+  // ── Clear ────────────────────────────────────────────────
+  document.getElementById("btn-clear")!.addEventListener("click", () => {
+    history = [];
+    messagesEl.innerHTML = "";
+    messagesEl.appendChild(welcome);
+    welcome.style.display = "";
+    input.value = "";
+    input.style.height = "auto";
+  });
+
+  // ── Helpers ──────────────────────────────────────────────
+  function setLoading(on: boolean) {
+    isLoading = on;
+    btnSend.disabled = on;
+    sendIcon.classList.toggle("hidden", on);
+    loadingIcon.classList.toggle("hidden", !on);
+    input.disabled = on;
+    statusLabel.textContent = on ? "Pensando…" : "Listo";
+  }
+
+  function scrollBottom() {
+    messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: "smooth" });
+  }
+
+  // ── Message bubble builders ──────────────────────────────
+  function appendUserBubble(text: string) {
+    welcome.style.display = "none";
+    const el = document.createElement("div");
+    el.className = "flex justify-end";
+    el.innerHTML = `
+      <div class="max-w-[75%] rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-4 py-2.5 text-sm whitespace-pre-wrap break-words">
+        ${escapeHtml(text)}
+      </div>`;
+    messagesEl.appendChild(el);
+    scrollBottom();
+    return el;
+  }
+
+  function appendAssistantBubble(): { el: HTMLElement; setText: (t: string) => void } {
+    const el = document.createElement("div");
+    el.className = "flex gap-3 items-start";
+    el.innerHTML = `
+      <div class="shrink-0 size-7 rounded-lg bg-primary/10 flex items-center justify-center mt-0.5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5 text-primary">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/>
+          <path d="M8 12h8M12 8v8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="max-w-[80%] rounded-2xl rounded-tl-sm bg-card border border-border px-4 py-2.5 text-sm whitespace-pre-wrap break-words content-area">
+        <span class="inline-block size-4 rounded-sm bg-muted animate-pulse"></span>
+      </div>`;
+    messagesEl.appendChild(el);
+    scrollBottom();
+    const contentArea = el.querySelector(".content-area") as HTMLElement;
+    return {
+      el,
+      setText(t: string) {
+        contentArea.textContent = t;
+        scrollBottom();
+      },
+    };
+  }
+
+  function appendToolCallGroup(): {
+    el: HTMLElement;
+    addCall: (name: string) => { done: (result?: any, error?: string) => void };
+  } {
+    const el = document.createElement("div");
+    el.className = "flex gap-3 items-start pl-10";
+    el.innerHTML = `<div class="flex flex-wrap gap-2 tool-list"></div>`;
+    messagesEl.appendChild(el);
+    const list = el.querySelector(".tool-list")!;
+
+    function addCall(name: string) {
+      const chip = document.createElement("details");
+      chip.className =
+        "group rounded-lg border border-border bg-muted/30 text-xs overflow-hidden";
+      chip.innerHTML = `
+        <summary class="flex items-center gap-1.5 px-2.5 py-1.5 cursor-pointer list-none select-none text-muted-foreground hover:text-foreground transition-colors">
+          <svg class="size-3 shrink-0 text-amber-500 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <span class="font-mono">${escapeHtml(name)}</span>
+          <svg class="size-2.5 ml-1 rotate-0 group-open:rotate-180 transition-transform shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M6 9l6 6 6-6" stroke-linecap="round"/>
+          </svg>
+        </summary>
+        <div class="result-area hidden border-t border-border bg-background px-3 py-2 font-mono text-[11px] text-muted-foreground max-h-48 overflow-y-auto whitespace-pre-wrap"></div>`;
+      list.appendChild(chip);
+      scrollBottom();
+
+      return {
+        done(result?: any, error?: string) {
+          const spinner = chip.querySelector("svg.animate-spin")!;
+          if (error) {
+            spinner.outerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3 shrink-0 text-destructive"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6" stroke-linecap="round"/></svg>`;
+          } else {
+            (spinner as SVGElement).classList.remove("animate-spin");
+            (spinner as SVGElement).outerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3 shrink-0 text-green-500"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+          }
+          const resultArea = chip.querySelector(".result-area") as HTMLElement;
+          resultArea.classList.remove("hidden");
+          resultArea.textContent = error
+            ? `Error: ${error}`
+            : JSON.stringify(result, null, 2);
+        },
+      };
+    }
+
+    return { el, addCall };
+  }
+
+  function escapeHtml(s: string) {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ── Submit ────────────────────────────────────────────────
+  async function sendMessage(text: string) {
+    if (!text.trim() || isLoading) return;
+
+    appendUserBubble(text);
+    input.value = "";
+    input.style.height = "auto";
+    setLoading(true);
+
+    let toolGroup: ReturnType<typeof appendToolCallGroup> | null = null;
+    const pendingCalls = new Map<string, ReturnType<ReturnType<typeof appendToolCallGroup>["addCall"]>>();
+    const assistantBubble = appendAssistantBubble();
+
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, history }),
+      });
+
+      if (!resp.ok || !resp.body) throw new Error(`Error ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let event: any;
+          try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (event.type === "tool_start") {
+            if (!toolGroup) toolGroup = appendToolCallGroup();
+            const callHandle = toolGroup.addCall(event.name);
+            pendingCalls.set(event.name, callHandle);
+            statusLabel.textContent = `Llamando: ${event.name}…`;
+            scrollBottom();
+          }
+
+          if (event.type === "tool_end") {
+            const callHandle = pendingCalls.get(event.name);
+            callHandle?.done(event.result, event.error);
+            pendingCalls.delete(event.name);
+          }
+
+          if (event.type === "response") {
+            assistantBubble.setText(event.content);
+            if (event.history) history = event.history;
+          }
+
+          if (event.type === "error") {
+            assistantBubble.setText(`Error: ${event.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      assistantBubble.setText(`Error de conexión: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    sendMessage(input.value.trim());
+  });
+
+  // Ctrl+Enter / Cmd+Enter to send
+  input.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      sendMessage(input.value.trim());
+    }
+  });
+</script>
