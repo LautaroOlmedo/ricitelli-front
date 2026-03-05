@@ -1,0 +1,237 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getProductionOrders } from "@/lib/grpc/productionOrderClient";
+
+let orders: any[] = [];
+let loadError = "";
+try {
+  orders = await getProductionOrders();
+} catch (e: any) {
+  loadError = e.message;
+}
+
+// ── Calendar state (from query param, default = current month) ────────────
+const url = new URL(Astro.request.url);
+const paramYear  = parseInt(url.searchParams.get("year")  ?? "0");
+const paramMonth = parseInt(url.searchParams.get("month") ?? "0");
+
+const today = new Date();
+const viewYear  = paramYear  || today.getFullYear();
+const viewMonth = paramMonth || (today.getMonth() + 1); // 1-based
+
+// ── Calendar grid helpers ─────────────────────────────────────────────────
+const firstDay = new Date(viewYear, viewMonth - 1, 1);
+const lastDay  = new Date(viewYear, viewMonth, 0);
+const totalDays = lastDay.getDate();
+// weekday of the first day (0=Sun → adjust to Mon-start)
+const startOffset = (firstDay.getDay() + 6) % 7; // 0=Mon … 6=Sun
+
+const monthNames = [
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+];
+const dayNames = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+
+// ── Navigation URLs ───────────────────────────────────────────────────────
+function navURL(y: number, m: number) {
+  const adj = m < 1 ? [y - 1, 12] : m > 12 ? [y + 1, 1] : [y, m];
+  return `/production-orders/calendar?year=${adj[0]}&month=${adj[1]}`;
+}
+const prevURL = navURL(viewYear, viewMonth - 1);
+const nextURL = navURL(viewYear, viewMonth + 1);
+
+// ── Map orders to days ────────────────────────────────────────────────────
+// key = "YYYY-MM-DD"
+const ordersByDay: Record<string, any[]> = {};
+for (const o of orders) {
+  if (!o.created_at) continue;
+  const day = o.created_at.slice(0, 10); // "YYYY-MM-DD"
+  const [oy, om] = day.split("-").map(Number);
+  if (oy === viewYear && om === viewMonth) {
+    if (!ordersByDay[day]) ordersByDay[day] = [];
+    ordersByDay[day].push(o);
+  }
+}
+
+// ── Build flat cell array (nulls = padding before day 1) ─────────────────
+const cells: (number | null)[] = [
+  ...Array(startOffset).fill(null),
+  ...Array.from({ length: totalDays }, (_, i) => i + 1),
+];
+// Pad to complete last row
+while (cells.length % 7 !== 0) cells.push(null);
+
+function padDay(d: number) { return String(d).padStart(2, "0"); }
+function dayKey(d: number) { return `${viewYear}-${padDay(viewMonth)}-${padDay(d)}`; }
+function isToday(d: number) {
+  return d === today.getDate() && viewMonth === today.getMonth() + 1 && viewYear === today.getFullYear();
+}
+
+const totalThisMonth = Object.values(ordersByDay).flat().length;
+---
+
+<AppLayout title="Calendario de Producción">
+  <div class="px-8 py-8 max-w-5xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <a href="/production-orders" class="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Producción
+          </a>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5 text-muted-foreground">
+            <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="text-sm font-medium">Calendario</span>
+        </div>
+        <h1 class="text-2xl font-semibold tracking-tight">
+          {monthNames[viewMonth - 1]} {viewYear}
+        </h1>
+        {!loadError && (
+          <p class="text-sm text-muted-foreground mt-1">
+            {totalThisMonth} {totalThisMonth === 1 ? "orden" : "órdenes"} este mes
+          </p>
+        )}
+      </div>
+
+      <!-- Month navigation -->
+      <div class="flex items-center gap-2">
+        <a href={prevURL}
+          class="inline-flex items-center justify-center size-9 rounded-lg border border-input bg-background hover:bg-accent transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        <a href="/production-orders/calendar"
+          class="inline-flex items-center justify-center rounded-lg border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent transition-colors">
+          Hoy
+        </a>
+        <a href={nextURL}
+          class="inline-flex items-center justify-center size-9 rounded-lg border border-input bg-background hover:bg-accent transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    {loadError && (
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center mb-6">
+        <p class="text-sm text-destructive">{loadError}</p>
+      </div>
+    )}
+
+    <!-- Calendar grid -->
+    <div class="rounded-xl border border-border bg-card overflow-hidden">
+
+      <!-- Day headers -->
+      <div class="grid grid-cols-7 border-b border-border">
+        {dayNames.map((d, i) => (
+          <div class:list={[
+            "px-2 py-2.5 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider",
+            i < 6 ? "border-r border-border" : "",
+          ]}>
+            {d}
+          </div>
+        ))}
+      </div>
+
+      <!-- Day cells -->
+      <div class="grid grid-cols-7">
+        {cells.map((day, idx) => {
+          const isLastRow   = idx >= cells.length - 7;
+          const isLastCol   = idx % 7 === 6;
+          const orders_day  = day ? (ordersByDay[dayKey(day)] ?? []) : [];
+          const hasOrders   = orders_day.length > 0;
+          return (
+            <div class:list={[
+              "min-h-[90px] p-2 flex flex-col",
+              !isLastRow  ? "border-b border-border" : "",
+              !isLastCol  ? "border-r border-border" : "",
+              !day        ? "bg-muted/20" : "",
+              day && isToday(day as number) ? "bg-primary/5" : "",
+            ]}>
+              {day && (
+                <>
+                  <!-- Day number -->
+                  <span class:list={[
+                    "text-xs font-semibold mb-1.5 size-6 flex items-center justify-center rounded-full",
+                    isToday(day as number)
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground",
+                  ]}>
+                    {day}
+                  </span>
+
+                  <!-- Order chips -->
+                  <div class="flex flex-col gap-1">
+                    {orders_day.slice(0, 3).map((o: any) => (
+                      <a
+                        href={`/production-orders/${o.id}`}
+                        class="block rounded px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors truncate"
+                        title={`Orden ${o.id.slice(0,8)} — ${o.items?.length ?? 0} productos`}
+                      >
+                        {o.items?.length ?? 0} prod.
+                      </a>
+                    ))}
+                    {orders_day.length > 3 && (
+                      <span class="text-xs text-muted-foreground px-1">
+                        +{orders_day.length - 3} más
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+    <!-- Legend + month summary -->
+    {!loadError && orders.length > 0 && (
+      <div class="mt-6 rounded-xl border border-border bg-card overflow-hidden">
+        <div class="px-5 py-4 border-b border-border">
+          <h2 class="text-sm font-semibold">
+            Órdenes de {monthNames[viewMonth - 1]}
+          </h2>
+        </div>
+        {totalThisMonth === 0 ? (
+          <p class="px-5 py-4 text-sm text-muted-foreground">
+            Sin órdenes de producción en este mes.
+          </p>
+        ) : (
+          <div class="divide-y divide-border">
+            {Object.entries(ordersByDay)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .flatMap(([date, dayOrders]) =>
+                dayOrders.map((o: any) => ({ ...o, _date: date }))
+              )
+              .map((o: any) => (
+                <a href={`/production-orders/${o.id}`}
+                  class="flex items-center justify-between px-5 py-3 text-sm hover:bg-muted/30 transition-colors group">
+                  <div>
+                    <span class="text-xs text-muted-foreground">{o._date}</span>
+                    <p class="font-mono text-xs text-foreground group-hover:text-primary transition-colors mt-0.5">
+                      {o.id.slice(0, 16)}…
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-muted-foreground">
+                      {o.items?.length ?? 0} producto{(o.items?.length ?? 0) !== 1 ? "s" : ""}
+                    </span>
+                    <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground">
+                      {o.status || "IN PROGRESS"}
+                    </span>
+                  </div>
+                </a>
+              ))
+            }
+          </div>
+        )}
+      </div>
+    )}
+
+  </div>
+</AppLayout>
