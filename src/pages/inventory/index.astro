@@ -186,7 +186,7 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
 </AppLayout>
 
 <!-- Convert SV → PT Modal -->
-<div id="modal-convert" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+<div id="modal-convert" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
   <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
     <h2 class="text-base font-semibold mb-1">Convertir SV → PT</h2>
     <p class="text-xs text-muted-foreground mb-4">Transforma botellas Sin Vestir en Producto Terminado asignando un lote.</p>
@@ -225,16 +225,13 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
 </div>
 
 <script>
+  function showModal(el: HTMLElement) { el.classList.remove("hidden"); el.classList.add("flex"); }
+  function hideModal(el: HTMLElement) { el.classList.add("hidden"); el.classList.remove("flex"); }
+
   const modal = document.getElementById("modal-convert")!;
-  document.getElementById("btn-convert")!.addEventListener("click", () => {
-    modal.classList.remove("hidden");
-  });
-  document.getElementById("cv-cancel")!.addEventListener("click", () => {
-    modal.classList.add("hidden");
-  });
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.classList.add("hidden");
-  });
+  document.getElementById("btn-convert")!.addEventListener("click", () => showModal(modal));
+  document.getElementById("cv-cancel")!.addEventListener("click", () => hideModal(modal));
+  modal.addEventListener("click", (e) => { if (e.target === modal) hideModal(modal); });
 
   const cvProduct = document.getElementById("cv-product") as HTMLSelectElement;
   const cvQty = document.getElementById("cv-quantity") as HTMLInputElement;
@@ -263,7 +260,7 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
       if (res.ok) {
         cvSuccess.textContent = "Conversión exitosa. Recargando…";
         cvSuccess.classList.remove("hidden");
-        setTimeout(() => { modal.classList.add("hidden"); window.location.reload(); }, 1200);
+        setTimeout(() => { hideModal(modal); window.location.reload(); }, 1200);
       } else {
         const body = await res.json().catch(() => ({}));
         cvError.textContent = body.error ?? `Error ${res.status}`;

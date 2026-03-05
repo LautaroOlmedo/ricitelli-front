@@ -151,6 +151,7 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
                 return (
                   <tr
                     class="supply-row group hover:bg-muted/30 transition-colors"
+                    data-id={s.id}
                     data-search={`${s.code} ${s.name}`.toLowerCase()}
                   >
                     <!-- Code + Name -->
@@ -223,8 +224,61 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
   </div>
 </AppLayout>
 
+<!-- New Dry Supply Modal -->
+<div id="modal-new-supply" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
+  <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+    <h2 class="text-base font-semibold mb-1">Nuevo Insumo Seco</h2>
+    <p class="text-xs text-muted-foreground mb-4">Registra un nuevo insumo en el catálogo.</p>
+    <div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="ns-code" class="text-sm font-medium">Código (SKU) <span class="text-destructive">*</span></label>
+          <input id="ns-code" type="text" placeholder="ej: HEYM-CTR-JP"
+            class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
+        </div>
+        <div>
+          <label for="ns-unit" class="text-sm font-medium">Unidad</label>
+          <select id="ns-unit"
+            class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+            <option value="UNIT">Unidad</option>
+            <option value="BOX">Caja</option>
+            <option value="KG">Kg</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label for="ns-name" class="text-sm font-medium">Nombre <span class="text-destructive">*</span></label>
+        <input id="ns-name" type="text" placeholder="ej: Contraetiqueta Japón Hey Malbec"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <div>
+        <label for="ns-category" class="text-sm font-medium">Categoría</label>
+        <select id="ns-category"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <option value="LABEL">Etiqueta</option>
+          <option value="CONTRAETIQUETA">Contraetiqueta</option>
+          <option value="BOX">Caja</option>
+          <option value="CORK">Corcho</option>
+          <option value="CAPSULE">Cápsula</option>
+          <option value="BOTTLE">Botella</option>
+          <option value="OTHER">Otro</option>
+        </select>
+      </div>
+      <p id="ns-error" class="hidden text-xs text-destructive"></p>
+    </div>
+    <div class="flex justify-end gap-2 mt-6">
+      <button id="ns-cancel" class="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
+        Cancelar
+      </button>
+      <button id="ns-confirm" class="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
+        Crear insumo
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Add Stock Modal -->
-<div id="modal-add-stock" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+<div id="modal-add-stock" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
   <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
     <h2 class="text-base font-semibold mb-4">Agregar Stock</h2>
     <div class="space-y-3">
@@ -256,7 +310,16 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
 </div>
 
 <script>
-  // Search filter
+  function showModal(el: HTMLElement) {
+    el.classList.remove("hidden");
+    el.classList.add("flex");
+  }
+  function hideModal(el: HTMLElement) {
+    el.classList.add("hidden");
+    el.classList.remove("flex");
+  }
+
+  // ── Search filter ─────────────────────────────────────────
   const searchInput = document.getElementById("search-input") as HTMLInputElement | null;
   const tbody = document.getElementById("supply-tbody");
   const badge = document.getElementById("row-count");
@@ -278,38 +341,77 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
     });
   }
 
-  // Add Stock modal — supply rows click
+  // ── New Dry Supply modal ──────────────────────────────────
+  const nsModal = document.getElementById("modal-new-supply")!;
+  const nsCode = document.getElementById("ns-code") as HTMLInputElement;
+  const nsName = document.getElementById("ns-name") as HTMLInputElement;
+  const nsCategory = document.getElementById("ns-category") as HTMLSelectElement;
+  const nsUnit = document.getElementById("ns-unit") as HTMLSelectElement;
+  const nsError = document.getElementById("ns-error")!;
+
+  document.getElementById("btn-new-supply")!.addEventListener("click", () => {
+    nsCode.value = "";
+    nsName.value = "";
+    nsError.classList.add("hidden");
+    showModal(nsModal);
+  });
+  document.getElementById("ns-cancel")!.addEventListener("click", () => hideModal(nsModal));
+  nsModal.addEventListener("click", (e) => { if (e.target === nsModal) hideModal(nsModal); });
+
+  document.getElementById("ns-confirm")!.addEventListener("click", async () => {
+    nsError.classList.add("hidden");
+    const code = nsCode.value.trim();
+    const name = nsName.value.trim();
+    if (!code || !name) {
+      nsError.textContent = "El código y el nombre son obligatorios.";
+      nsError.classList.remove("hidden");
+      return;
+    }
+    try {
+      const res = await fetch("/api/dry-supplies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, name, category: nsCategory.value, unit: nsUnit.value }),
+      });
+      if (res.ok) {
+        hideModal(nsModal);
+        window.location.reload();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        nsError.textContent = body.error ?? `Error ${res.status}`;
+        nsError.classList.remove("hidden");
+      }
+    } catch {
+      nsError.textContent = "Error de red.";
+      nsError.classList.remove("hidden");
+    }
+  });
+
+  // ── Add Stock modal — supply rows click ───────────────────
   let currentSupplyId = "";
-  const modal = document.getElementById("modal-add-stock")!;
+  const stockModal = document.getElementById("modal-add-stock")!;
   const modalName = document.getElementById("modal-supply-name")!;
   const modalQty = document.getElementById("modal-quantity") as HTMLInputElement;
   const modalRef = document.getElementById("modal-reference") as HTMLInputElement;
   const modalError = document.getElementById("modal-error")!;
 
+  // Store supply IDs on row dataset via server-rendered data attribute
   document.querySelectorAll<HTMLElement>(".supply-row").forEach((row) => {
     row.style.cursor = "pointer";
     row.addEventListener("click", () => {
-      // Extract id from the row — use dataset trick
-      const code = row.querySelector(".font-mono")?.textContent ?? "";
-      const name = row.querySelector(".font-medium")?.textContent ?? "";
-      // Find id from supplies data embedded in the page
-      const allRows = Array.from(document.querySelectorAll<HTMLElement>(".supply-row"));
-      const idx = allRows.indexOf(row);
-      currentSupplyId = (window as any).__supplyIds?.[idx] ?? "";
+      currentSupplyId = row.dataset.id ?? "";
+      const code = row.querySelector<HTMLElement>(".font-mono")?.textContent?.trim() ?? "";
+      const name = row.querySelector<HTMLElement>(".font-medium")?.textContent?.trim() ?? "";
       modalName.textContent = `${code} — ${name}`;
       modalError.classList.add("hidden");
       modalQty.value = "100";
       modalRef.value = "";
-      modal.classList.remove("hidden");
+      showModal(stockModal);
     });
   });
 
-  document.getElementById("modal-cancel")!.addEventListener("click", () => {
-    modal.classList.add("hidden");
-  });
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.classList.add("hidden");
-  });
+  document.getElementById("modal-cancel")!.addEventListener("click", () => hideModal(stockModal));
+  stockModal.addEventListener("click", (e) => { if (e.target === stockModal) hideModal(stockModal); });
 
   document.getElementById("modal-confirm")!.addEventListener("click", async () => {
     if (!currentSupplyId) return;
@@ -326,7 +428,7 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
         body: JSON.stringify({ quantity: qty, reference: modalRef.value.trim() || "manual" }),
       });
       if (res.ok) {
-        modal.classList.add("hidden");
+        hideModal(stockModal);
         window.location.reload();
       } else {
         const body = await res.json().catch(() => ({}));
