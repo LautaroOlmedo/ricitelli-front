@@ -1,0 +1,277 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getInventoryReport } from "@/lib/grpc/inventoryClient";
+import type { InventoryReport } from "@/lib/grpc/types";
+
+let report: InventoryReport | null = null;
+let loadError: string | null = null;
+
+try {
+  report = await getInventoryReport();
+} catch (e: any) {
+  loadError = e.details ?? e.message ?? "Error al conectar con el servidor";
+}
+
+const products = report?.products ?? [];
+const alerts = report?.dry_supply_alerts ?? [];
+
+const lowAlerts = alerts.filter((a) => a.is_low);
+const totalUndressed = products.reduce((s, p) => s + p.undressed_stock, 0);
+const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
+---
+
+<AppLayout title="Inventario">
+  <div class="px-8 py-8 max-w-6xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Inventario</h1>
+        <p class="text-sm text-muted-foreground mt-1">
+          Stock tricapa de productos (SV / PT) y alertas de insumos secos
+        </p>
+      </div>
+      <button
+        id="btn-convert"
+        class="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+          <path d="M4 4v6h6M20 20v-6h-6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M20 10A8 8 0 004.93 14.93M4 14a8 8 0 0015.07-4.07" stroke-linecap="round"/>
+        </svg>
+        Convertir SV → PT
+      </button>
+    </div>
+
+    <!-- Error -->
+    {loadError && (
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center mb-8">
+        <h3 class="font-semibold text-sm text-destructive">No se pudo conectar con el servidor gRPC</h3>
+        <p class="text-sm text-muted-foreground mt-1">{loadError}</p>
+      </div>
+    )}
+
+    {!loadError && report && (
+      <>
+        <!-- Summary cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: "Productos",       value: String(products.length),                  sub: "en sistema",              color: "" },
+            { label: "SV disponible",   value: totalUndressed.toLocaleString("es-AR"),   sub: "Sin Vestir (físico)",     color: "" },
+            { label: "PT disponible",   value: totalDressedAvail.toLocaleString("es-AR"), sub: "Producto Terminado",     color: "text-green-600" },
+            { label: "Alertas stock",   value: String(lowAlerts.length),                 sub: "insumos en stock bajo",   color: lowAlerts.length > 0 ? "text-destructive" : "text-green-600" },
+          ].map(({ label, value, sub, color }) => (
+            <div class="rounded-xl border border-border bg-card p-5">
+              <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+              <p class:list={["mt-2 text-3xl font-bold tracking-tight", color || ""]}>
+                {value}
+              </p>
+              <p class="text-xs text-muted-foreground mt-1">{sub}</p>
+            </div>
+          ))}
+        </div>
+
+        <!-- Product Tricapa Table -->
+        <div class="rounded-xl border border-border bg-card overflow-hidden mb-8">
+          <div class="px-5 py-4 border-b border-border">
+            <h2 class="text-sm font-semibold">Stock por Producto</h2>
+            <p class="text-xs text-muted-foreground mt-0.5">SV = Sin Vestir · PT = Producto Terminado (físico / comprometido / disponible)</p>
+          </div>
+
+          {products.length === 0 ? (
+            <p class="p-8 text-center text-sm text-muted-foreground">Sin datos de inventario de producto.</p>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-muted/30 border-b border-border">
+                  <tr>
+                    <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Producto</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">SV</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">PT Físico</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">PT Comprom.</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">PT Disponible</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  {products.map((p) => (
+                    <tr class="hover:bg-muted/30 transition-colors">
+                      <td class="px-5 py-4">
+                        <p class="font-medium">{p.product_name}</p>
+                        <p class="text-xs text-muted-foreground font-mono mt-0.5">{p.product_id.slice(0, 8)}…</p>
+                      </td>
+                      <td class="px-5 py-4 text-right font-mono text-sm text-muted-foreground">
+                        {p.undressed_stock.toLocaleString("es-AR")}
+                      </td>
+                      <td class="px-5 py-4 text-right font-mono text-sm">
+                        {p.dressed_physical.toLocaleString("es-AR")}
+                      </td>
+                      <td class="px-5 py-4 text-right font-mono text-sm text-amber-600">
+                        {p.dressed_committed.toLocaleString("es-AR")}
+                      </td>
+                      <td class="px-5 py-4 text-right font-mono text-sm font-semibold text-green-600">
+                        {p.dressed_available.toLocaleString("es-AR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <!-- Dry Supply Alerts -->
+        <div class="rounded-xl border border-border bg-card overflow-hidden">
+          <div class="px-5 py-4 border-b border-border flex items-center gap-3">
+            <h2 class="text-sm font-semibold flex-1">Alertas de Insumos Secos</h2>
+            {lowAlerts.length > 0 && (
+              <span class="inline-flex items-center rounded-full bg-destructive/10 text-destructive px-2 py-0.5 text-xs font-medium">
+                {lowAlerts.length} {lowAlerts.length === 1 ? "alerta" : "alertas"}
+              </span>
+            )}
+          </div>
+
+          {alerts.length === 0 ? (
+            <p class="p-8 text-center text-sm text-muted-foreground">Sin datos de insumos.</p>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-muted/30 border-b border-border">
+                  <tr>
+                    <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Código / Nombre</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Físico</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Comprometido</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Disponible</th>
+                    <th class="px-5 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-20">Estado</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  {alerts.map((a) => (
+                    <tr class:list={["hover:bg-muted/30 transition-colors", a.is_low ? "bg-destructive/5" : ""]}>
+                      <td class="px-5 py-4">
+                        <span class="font-mono text-xs text-muted-foreground">{a.code}</span>
+                        <p class="font-medium text-sm mt-0.5">{a.name}</p>
+                      </td>
+                      <td class="px-5 py-4 text-right font-mono text-sm">
+                        {a.physical.toLocaleString("es-AR")}
+                      </td>
+                      <td class="px-5 py-4 text-right font-mono text-sm text-amber-600">
+                        {a.committed.toLocaleString("es-AR")}
+                      </td>
+                      <td class:list={[
+                        "px-5 py-4 text-right font-mono text-sm font-semibold",
+                        a.is_low ? "text-destructive" : "text-green-600",
+                      ]}>
+                        {a.available.toLocaleString("es-AR")}
+                      </td>
+                      <td class="px-5 py-4 text-center">
+                        <span class:list={[
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                          a.is_low
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+                        ]}>
+                          {a.is_low ? "Bajo" : "OK"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </>
+    )}
+  </div>
+</AppLayout>
+
+<!-- Convert SV → PT Modal -->
+<div id="modal-convert" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+  <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+    <h2 class="text-base font-semibold mb-1">Convertir SV → PT</h2>
+    <p class="text-xs text-muted-foreground mb-4">Transforma botellas Sin Vestir en Producto Terminado asignando un lote.</p>
+    <div class="space-y-3">
+      <div>
+        <label for="cv-product" class="text-sm font-medium">Producto <span class="text-destructive">*</span></label>
+        <select id="cv-product" class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <option value="">— seleccionar —</option>
+          {products.map((p) => (
+            <option value={p.product_id}>{p.product_name}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label for="cv-quantity" class="text-sm font-medium">Cantidad <span class="text-destructive">*</span></label>
+        <input id="cv-quantity" type="number" min="1" value="100"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <div>
+        <label for="cv-lot" class="text-sm font-medium">Número de Lote <span class="text-destructive">*</span></label>
+        <input id="cv-lot" type="text" placeholder="ej: LOT-2024-001"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <p id="cv-error" class="hidden text-xs text-destructive"></p>
+      <p id="cv-success" class="hidden text-xs text-green-600 font-medium"></p>
+    </div>
+    <div class="flex justify-end gap-2 mt-6">
+      <button id="cv-cancel" class="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
+        Cancelar
+      </button>
+      <button id="cv-confirm" class="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
+        Convertir
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modal = document.getElementById("modal-convert")!;
+  document.getElementById("btn-convert")!.addEventListener("click", () => {
+    modal.classList.remove("hidden");
+  });
+  document.getElementById("cv-cancel")!.addEventListener("click", () => {
+    modal.classList.add("hidden");
+  });
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.add("hidden");
+  });
+
+  const cvProduct = document.getElementById("cv-product") as HTMLSelectElement;
+  const cvQty = document.getElementById("cv-quantity") as HTMLInputElement;
+  const cvLot = document.getElementById("cv-lot") as HTMLInputElement;
+  const cvError = document.getElementById("cv-error")!;
+  const cvSuccess = document.getElementById("cv-success")!;
+
+  document.getElementById("cv-confirm")!.addEventListener("click", async () => {
+    cvError.classList.add("hidden");
+    cvSuccess.classList.add("hidden");
+
+    const productId = cvProduct.value;
+    const quantity = parseInt(cvQty.value, 10);
+    const lotNumber = cvLot.value.trim();
+
+    if (!productId) { cvError.textContent = "Seleccioná un producto."; cvError.classList.remove("hidden"); return; }
+    if (!quantity || quantity < 1) { cvError.textContent = "La cantidad debe ser mayor a 0."; cvError.classList.remove("hidden"); return; }
+    if (!lotNumber) { cvError.textContent = "El número de lote es obligatorio."; cvError.classList.remove("hidden"); return; }
+
+    try {
+      const res = await fetch("/api/inventory/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: productId, quantity, lot_number: lotNumber }),
+      });
+      if (res.ok) {
+        cvSuccess.textContent = "Conversión exitosa. Recargando…";
+        cvSuccess.classList.remove("hidden");
+        setTimeout(() => { modal.classList.add("hidden"); window.location.reload(); }, 1200);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        cvError.textContent = body.error ?? `Error ${res.status}`;
+        cvError.classList.remove("hidden");
+      }
+    } catch {
+      cvError.textContent = "Error de red.";
+      cvError.classList.remove("hidden");
+    }
+  });
+</script>

@@ -1,3 +1,5 @@
+// ── Products ──────────────────────────────────────────────────────────────
+
 export interface BillOfDrySupply {
   dry_supply_id: string;
   quantity_per_unit: number;
@@ -14,6 +16,8 @@ export interface CreateProductInput {
   bom: BillOfDrySupply[];
 }
 
+// ── Sale Orders ───────────────────────────────────────────────────────────
+
 export interface SaleOrderItem {
   product_id: string;
   quantity: number;
@@ -23,10 +27,25 @@ export interface SaleOrderItem {
 export interface SaleOrder {
   id: string;
   customer_id: string;
-  status: string;
+  status: string;        // NEW | CONFIRMED | INVOICED | DISPATCHED | CANCELLED
   items: SaleOrderItem[];
   created_at: string;
+  currency: string;           // ARS | USD | CAD | EUR
+  market: string;             // DOMESTIC | EXPORT
+  destination_country: string;
+  sale_type: string;          // SALE | SAMPLE_CUSTOMS | GIFT | INTERNAL | COMMERCIAL_SAMPLE
 }
+
+export interface CreateSaleOrderInput {
+  customer_id: string;
+  items: SaleOrderItem[];
+  currency?: string;
+  market?: string;
+  destination_country?: string;
+  sale_type?: string;
+}
+
+// ── Production Orders ─────────────────────────────────────────────────────
 
 export interface MaterialRequirement {
   dry_supply_id: string;
@@ -45,4 +64,50 @@ export interface ProductionOrder {
   items: ProductionItem[];
   status: string;
   created_at: string;
+}
+
+// ── Dry Supplies ──────────────────────────────────────────────────────────
+
+export interface DrySupply {
+  id: string;
+  code: string;     // SKU, e.g. "HEYM-CTR-JP"
+  name: string;
+  category: string; // LABEL | CONTRAETIQUETA | BOX | CORK | CAPSULE | BOTTLE | OTHER
+  unit: string;     // UNIT | BOX | KG
+}
+
+export interface StockTricapa {
+  dry_supply_id: string;
+  code: string;
+  name: string;
+  physical_stock: number;   // total IN - CONSUMED
+  committed_stock: number;  // reserved for production orders
+  available_stock: number;  // physical - committed
+}
+
+// ── Inventory ─────────────────────────────────────────────────────────────
+
+export interface ProductTricapa {
+  product_id: string;
+  product_name: string;
+  sku: string;
+  undressed_stock: number;    // SV — Sin Vestir (physical)
+  dressed_physical: number;   // PT — Producto Terminado (physical)
+  dressed_committed: number;  // PT committed for sale orders
+  dressed_available: number;  // PT available = physical - committed
+}
+
+export interface DrySupplyAlert {
+  dry_supply_id: string;
+  code: string;
+  name: string;
+  physical: number;
+  committed: number;
+  available: number;
+  is_low: boolean;
+}
+
+export interface InventoryReport {
+  products: ProductTricapa[];
+  dry_supply_alerts: DrySupplyAlert[];
 }

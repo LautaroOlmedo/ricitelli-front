@@ -1,0 +1,341 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getDrySupplies } from "@/lib/grpc/drySupplyClient";
+import type { DrySupply, StockTricapa } from "@/lib/grpc/types";
+
+let supplies: DrySupply[] = [];
+let triCapaMap: Record<string, StockTricapa> = {};
+let loadError: string | null = null;
+
+try {
+  supplies = await getDrySupplies();
+  // Fetch tricapa for each supply in parallel (best-effort)
+  const triCapaResults = await Promise.allSettled(
+    supplies.map(async (s) => {
+      const res = await fetch(
+        `${Astro.url.origin}/api/dry-supplies/${s.id}?tricapa=true`
+      );
+      if (!res.ok) return null;
+      return res.json() as Promise<StockTricapa>;
+    })
+  );
+  triCapaResults.forEach((r, i) => {
+    if (r.status === "fulfilled" && r.value) {
+      triCapaMap[supplies[i].id] = r.value;
+    }
+  });
+} catch (e: any) {
+  loadError = e.details ?? e.message ?? "Error al conectar con el servidor";
+}
+
+const categoryLabel: Record<string, string> = {
+  LABEL: "Etiqueta",
+  CONTRAETIQUETA: "Contraetiqueta",
+  BOX: "Caja",
+  CORK: "Corcho",
+  CAPSULE: "Cápsula",
+  BOTTLE: "Botella",
+  OTHER: "Otro",
+};
+
+const categoryColor: Record<string, string> = {
+  LABEL:         "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  CONTRAETIQUETA:"bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
+  BOX:           "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  CORK:          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  CAPSULE:       "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
+  BOTTLE:        "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+  OTHER:         "bg-muted text-muted-foreground",
+};
+
+const totalPhysical = Object.values(triCapaMap).reduce((s, t) => s + t.physical_stock, 0);
+const totalCommitted = Object.values(triCapaMap).reduce((s, t) => s + t.committed_stock, 0);
+const totalAvailable = Object.values(triCapaMap).reduce((s, t) => s + t.available_stock, 0);
+const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock < 500).length;
+---
+
+<AppLayout title="Insumos Secos">
+  <div class="px-8 py-8 max-w-6xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Insumos Secos</h1>
+        <p class="text-sm text-muted-foreground mt-1">
+          Inventario tricapa: físico · comprometido · disponible
+        </p>
+      </div>
+      <button
+        id="btn-new-supply"
+        class="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+          <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+        </svg>
+        Agregar Insumo
+      </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      {[
+        { label: "Insumos totales",   value: String(supplies.length),              sub: "en catálogo",       color: "" },
+        { label: "Stock físico",      value: totalPhysical.toLocaleString("es-AR"), sub: "unidades totales",  color: "" },
+        { label: "Comprometido",      value: totalCommitted.toLocaleString("es-AR"), sub: "en producción",    color: "text-amber-600" },
+        { label: "Stock bajo",        value: String(lowStockCount),                 sub: "< 500 disponibles", color: lowStockCount > 0 ? "text-destructive" : "text-green-600" },
+      ].map(({ label, value, sub, color }) => (
+        <div class="rounded-xl border border-border bg-card p-5">
+          <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+          <p class:list={["mt-2 text-3xl font-bold tracking-tight", color || ""]}>
+            {value}
+          </p>
+          <p class="text-xs text-muted-foreground mt-1">{sub}</p>
+        </div>
+      ))}
+    </div>
+
+    <!-- Error state -->
+    {loadError && (
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
+        <h3 class="font-semibold text-sm text-destructive">No se pudo conectar con el servidor gRPC</h3>
+        <p class="text-sm text-muted-foreground mt-1">{loadError}</p>
+      </div>
+    )}
+
+    <!-- Table -->
+    {!loadError && supplies.length === 0 && (
+      <div class="rounded-xl border border-border bg-card p-14 text-center">
+        <p class="text-sm text-muted-foreground">No hay insumos registrados aún.</p>
+      </div>
+    )}
+
+    {!loadError && supplies.length > 0 && (
+      <div class="rounded-xl border border-border bg-card overflow-hidden">
+
+        <!-- Toolbar -->
+        <div class="flex items-center gap-3 px-5 py-3.5 border-b border-border">
+          <div class="relative flex-1 max-w-xs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35" stroke-linecap="round"/>
+            </svg>
+            <input
+              id="search-input"
+              type="text"
+              placeholder="Buscar por nombre o código…"
+              class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <span id="row-count" class="text-xs text-muted-foreground ml-auto shrink-0">
+            {supplies.length} {supplies.length === 1 ? "insumo" : "insumos"}
+          </span>
+        </div>
+
+        <!-- Table -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-muted/30 border-b border-border">
+              <tr>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Código / Nombre</th>
+                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoría</th>
+                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Físico</th>
+                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Comprometido</th>
+                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Disponible</th>
+                <th class="px-5 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="supply-tbody" class="divide-y divide-border">
+              {supplies.map((s) => {
+                const tri = triCapaMap[s.id];
+                const isLow = tri && tri.available_stock < 500;
+                return (
+                  <tr
+                    class="supply-row group hover:bg-muted/30 transition-colors"
+                    data-search={`${s.code} ${s.name}`.toLowerCase()}
+                  >
+                    <!-- Code + Name -->
+                    <td class="px-5 py-4">
+                      <span class="font-mono text-xs text-muted-foreground">{s.code}</span>
+                      <p class="font-medium text-sm mt-0.5">{s.name}</p>
+                    </td>
+
+                    <!-- Category -->
+                    <td class="px-5 py-4">
+                      <span class:list={[
+                        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
+                        categoryColor[s.category] ?? categoryColor.OTHER,
+                      ]}>
+                        {categoryLabel[s.category] ?? s.category}
+                      </span>
+                    </td>
+
+                    <!-- Physical -->
+                    <td class="px-5 py-4 text-right font-mono text-sm">
+                      {tri ? tri.physical_stock.toLocaleString("es-AR") : "—"}
+                    </td>
+
+                    <!-- Committed -->
+                    <td class="px-5 py-4 text-right font-mono text-sm text-amber-600">
+                      {tri ? tri.committed_stock.toLocaleString("es-AR") : "—"}
+                    </td>
+
+                    <!-- Available -->
+                    <td class:list={[
+                      "px-5 py-4 text-right font-mono text-sm font-semibold",
+                      isLow ? "text-destructive" : "text-green-600",
+                    ]}>
+                      {tri ? tri.available_stock.toLocaleString("es-AR") : "—"}
+                    </td>
+
+                    <!-- Status -->
+                    <td class="px-5 py-4 text-center">
+                      {!tri && (
+                        <span class="text-xs text-muted-foreground">—</span>
+                      )}
+                      {tri && (
+                        <span class:list={[
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                          isLow
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+                        ]}>
+                          {isLow ? "Bajo" : "OK"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
+          <p id="footer-count" class="text-xs text-muted-foreground">
+            {supplies.length} {supplies.length === 1 ? "insumo" : "insumos"}
+          </p>
+          <p class="text-xs text-muted-foreground">gRPC · localhost:50051</p>
+        </div>
+      </div>
+    )}
+
+  </div>
+</AppLayout>
+
+<!-- Add Stock Modal -->
+<div id="modal-add-stock" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+  <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+    <h2 class="text-base font-semibold mb-4">Agregar Stock</h2>
+    <div class="space-y-3">
+      <div>
+        <label class="text-sm font-medium">Insumo</label>
+        <p id="modal-supply-name" class="text-sm text-muted-foreground mt-0.5"></p>
+      </div>
+      <div>
+        <label for="modal-quantity" class="text-sm font-medium">Cantidad <span class="text-destructive">*</span></label>
+        <input id="modal-quantity" type="number" min="1" value="100"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <div>
+        <label for="modal-reference" class="text-sm font-medium">Referencia</label>
+        <input id="modal-reference" type="text" placeholder="ej: OC-2024-001"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <p id="modal-error" class="hidden text-xs text-destructive"></p>
+    </div>
+    <div class="flex justify-end gap-2 mt-6">
+      <button id="modal-cancel" class="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
+        Cancelar
+      </button>
+      <button id="modal-confirm" class="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
+        Agregar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Search filter
+  const searchInput = document.getElementById("search-input") as HTMLInputElement | null;
+  const tbody = document.getElementById("supply-tbody");
+  const badge = document.getElementById("row-count");
+  const footer = document.getElementById("footer-count");
+
+  if (searchInput && tbody) {
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      const rows = tbody.querySelectorAll<HTMLElement>(".supply-row");
+      let visible = 0;
+      rows.forEach((row) => {
+        const match = !q || (row.dataset.search ?? "").includes(q);
+        row.style.display = match ? "" : "none";
+        if (match) visible++;
+      });
+      const label = visible === 1 ? "insumo" : "insumos";
+      if (badge) badge.textContent = `${visible} ${label}`;
+      if (footer) footer.textContent = `${visible} ${label}`;
+    });
+  }
+
+  // Add Stock modal — supply rows click
+  let currentSupplyId = "";
+  const modal = document.getElementById("modal-add-stock")!;
+  const modalName = document.getElementById("modal-supply-name")!;
+  const modalQty = document.getElementById("modal-quantity") as HTMLInputElement;
+  const modalRef = document.getElementById("modal-reference") as HTMLInputElement;
+  const modalError = document.getElementById("modal-error")!;
+
+  document.querySelectorAll<HTMLElement>(".supply-row").forEach((row) => {
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => {
+      // Extract id from the row — use dataset trick
+      const code = row.querySelector(".font-mono")?.textContent ?? "";
+      const name = row.querySelector(".font-medium")?.textContent ?? "";
+      // Find id from supplies data embedded in the page
+      const allRows = Array.from(document.querySelectorAll<HTMLElement>(".supply-row"));
+      const idx = allRows.indexOf(row);
+      currentSupplyId = (window as any).__supplyIds?.[idx] ?? "";
+      modalName.textContent = `${code} — ${name}`;
+      modalError.classList.add("hidden");
+      modalQty.value = "100";
+      modalRef.value = "";
+      modal.classList.remove("hidden");
+    });
+  });
+
+  document.getElementById("modal-cancel")!.addEventListener("click", () => {
+    modal.classList.add("hidden");
+  });
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.add("hidden");
+  });
+
+  document.getElementById("modal-confirm")!.addEventListener("click", async () => {
+    if (!currentSupplyId) return;
+    const qty = parseInt(modalQty.value, 10);
+    if (!qty || qty < 1) {
+      modalError.textContent = "La cantidad debe ser mayor a 0.";
+      modalError.classList.remove("hidden");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/dry-supplies/${currentSupplyId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: qty, reference: modalRef.value.trim() || "manual" }),
+      });
+      if (res.ok) {
+        modal.classList.add("hidden");
+        window.location.reload();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        modalError.textContent = body.error ?? `Error ${res.status}`;
+        modalError.classList.remove("hidden");
+      }
+    } catch {
+      modalError.textContent = "Error de red.";
+      modalError.classList.remove("hidden");
+    }
+  });
+</script>

@@ -116,8 +116,96 @@ export const toolDefs = [
               required: ["product_id", "quantity", "unit_price"],
             },
           },
+          currency: prop("string", "Moneda: ARS | USD | EUR | CAD. Default ARS."),
+          market: prop("string", "Mercado: DOMESTIC | EXPORT. Default DOMESTIC."),
+          destination_country: prop("string", "País de destino (opcional, requerido en EXPORT)."),
+          sale_type: prop("string", "Tipo de salida: SALE | SAMPLE_CUSTOMS | GIFT | INTERNAL | COMMERCIAL_SAMPLE. Default SALE."),
         },
         required: ["customer_id", "items"],
+      },
+    },
+  },
+  // ── Insumos Secos ────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "listar_insumos",
+      description: "Lista todos los insumos secos (etiquetas, cajas, corchos, etc.) con su categoría y unidad.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "obtener_tricapa_insumo",
+      description: "Obtiene el stock tricapa (físico, comprometido, disponible) de un insumo seco por su ID.",
+      parameters: {
+        type: "object",
+        properties: { id: prop("string", "ID del insumo seco.") },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "agregar_stock_insumo",
+      description: "Agrega stock a un insumo seco (registra una entrada de material).",
+      parameters: {
+        type: "object",
+        properties: {
+          id: prop("string", "ID del insumo seco."),
+          quantity: { type: "integer", description: "Cantidad a agregar." },
+          reference: prop("string", "Referencia del movimiento (ej: OC-2024-001)."),
+        },
+        required: ["id", "quantity"],
+      },
+    },
+  },
+  // ── Inventario ───────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "reporte_inventario",
+      description:
+        "Obtiene el reporte completo de inventario: stock tricapa de todos los productos (SV/PT) y alertas de insumos secos.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "alertas_stock_bajo",
+      description: "Lista los insumos secos con stock disponible por debajo del umbral mínimo.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "obtener_tricapa_producto",
+      description: "Obtiene el stock tricapa de un producto (SV sin vestir, PT físico/comprometido/disponible).",
+      parameters: {
+        type: "object",
+        properties: { product_id: prop("string", "ID del producto.") },
+        required: ["product_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "convertir_sv_a_pt",
+      description:
+        "Convierte botellas Sin Vestir (SV) en Producto Terminado (PT), asignando un número de lote.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_id: prop("string", "ID del producto a convertir."),
+          quantity: { type: "integer", description: "Cantidad de unidades a convertir." },
+          lot_number: prop("string", "Número de lote asignado (ej: LOT-2024-001)."),
+        },
+        required: ["product_id", "quantity", "lot_number"],
       },
     },
   },
@@ -127,7 +215,7 @@ export const toolDefs = [
     function: {
       name: "resumen_sistema",
       description:
-        "Devuelve un resumen del sistema: total de productos, pedidos de venta y órdenes de producción.",
+        "Devuelve un resumen del sistema: total de productos, pedidos de venta, órdenes de producción e insumos con stock bajo.",
       parameters: { type: "object", properties: {} },
     },
   },

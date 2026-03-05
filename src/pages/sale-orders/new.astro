@@ -53,6 +53,50 @@ try {
         </div>
       </div>
 
+      <!-- Contexto Comercial -->
+      <div class="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div>
+          <h2 class="text-sm font-semibold">Contexto Comercial</h2>
+          <p class="text-xs text-muted-foreground mt-0.5">Moneda, mercado y tipo de salida</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label for="currency" class="text-sm font-medium">Moneda</label>
+            <select id="currency"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="ARS">ARS — Peso argentino</option>
+              <option value="USD">USD — Dólar</option>
+              <option value="EUR">EUR — Euro</option>
+              <option value="CAD">CAD — Dólar canadiense</option>
+            </select>
+          </div>
+          <div class="space-y-1.5">
+            <label for="market" class="text-sm font-medium">Mercado</label>
+            <select id="market"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="DOMESTIC">Mercado Interno</option>
+              <option value="EXPORT">Exportación</option>
+            </select>
+          </div>
+          <div class="space-y-1.5">
+            <label for="sale-type" class="text-sm font-medium">Tipo de Salida</label>
+            <select id="sale-type"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="SALE">Venta</option>
+              <option value="SAMPLE_CUSTOMS">Muestra Aduana</option>
+              <option value="GIFT">Regalo</option>
+              <option value="INTERNAL">Consumo Interno</option>
+              <option value="COMMERCIAL_SAMPLE">Muestra Comercial</option>
+            </select>
+          </div>
+          <div class="space-y-1.5">
+            <label for="destination" class="text-sm font-medium">País de Destino</label>
+            <input id="destination" type="text" placeholder="ej: Argentina, USA, Japón"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
+          </div>
+        </div>
+      </div>
+
       <!-- Items -->
       <div class="rounded-xl border border-border bg-card p-6 space-y-4">
         <div class="flex items-start justify-between">
@@ -221,12 +265,24 @@ try {
       return;
     }
 
+    const currency = document.getElementById("currency").value;
+    const market = document.getElementById("market").value;
+    const saleType = document.getElementById("sale-type").value;
+    const destination = document.getElementById("destination").value.trim();
+
     setLoading(true);
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer_id: customerId, items }),
+        body: JSON.stringify({
+          customer_id: customerId,
+          items,
+          currency,
+          market,
+          sale_type: saleType,
+          destination_country: destination || undefined,
+        }),
       });
       if (res.status === 201) {
         window.location.href = "/sale-orders";

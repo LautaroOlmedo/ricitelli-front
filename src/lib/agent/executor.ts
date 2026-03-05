@@ -6,9 +6,21 @@ import {
   getProductionOrderByID,
 } from "@/lib/grpc/productionOrderClient";
 import { createOrder } from "@/lib/grpc/applicationClient";
+import {
+  getDrySupplies,
+  getStockTricapa,
+  addStock,
+} from "@/lib/grpc/drySupplyClient";
+import {
+  getInventoryReport,
+  getLowStockAlerts,
+  getProductTricapa,
+  convertSVtoPT,
+} from "@/lib/grpc/inventoryClient";
 
 export async function executeTool(name: string, args: any): Promise<string> {
   switch (name) {
+    // ── Productos ────────────────────────────────────────────
     case "listar_productos": {
       const r = await getProducts();
       return JSON.stringify(r);
@@ -26,6 +38,8 @@ export async function executeTool(name: string, args: any): Promise<string> {
       await createProduct(args.name, bom);
       return JSON.stringify({ ok: true, message: "Producto creado exitosamente" });
     }
+
+    // ── Pedidos de Venta ─────────────────────────────────────
     case "listar_pedidos_venta": {
       const r = await getSaleOrders();
       return JSON.stringify(r);
@@ -35,6 +49,8 @@ export async function executeTool(name: string, args: any): Promise<string> {
       const r = await getSaleOrderByID(args.id);
       return JSON.stringify(r);
     }
+
+    // ── Órdenes de Producción ────────────────────────────────
     case "listar_ordenes_produccion": {
       const r = await getProductionOrders();
       return JSON.stringify(r);
@@ -44,24 +60,80 @@ export async function executeTool(name: string, args: any): Promise<string> {
       const r = await getProductionOrderByID(args.id);
       return JSON.stringify(r);
     }
+
+    // ── Servicio de Aplicación ───────────────────────────────
     case "crear_orden_completa": {
       if (!args?.customer_id || !args?.items?.length)
         throw new Error("customer_id e items son requeridos");
-      const r = await createOrder(args.customer_id, args.items);
+      const r = await createOrder({
+        customer_id: args.customer_id,
+        items: args.items,
+        currency: args.currency,
+        market: args.market,
+        destination_country: args.destination_country,
+        sale_type: args.sale_type,
+      });
       return JSON.stringify(r);
     }
+
+    // ── Insumos Secos ────────────────────────────────────────
+    case "listar_insumos": {
+      const r = await getDrySupplies();
+      return JSON.stringify(r);
+    }
+    case "obtener_tricapa_insumo": {
+      if (!args?.id) throw new Error("se requiere el campo 'id'");
+      const r = await getStockTricapa(args.id);
+      return JSON.stringify(r);
+    }
+    case "agregar_stock_insumo": {
+      if (!args?.id) throw new Error("se requiere el campo 'id'");
+      if (!args?.quantity || args.quantity < 1) throw new Error("quantity debe ser >= 1");
+      await addStock(args.id, Number(args.quantity), args.reference ?? "agente-ia");
+      return JSON.stringify({ ok: true, message: `Stock agregado: ${args.quantity} unidades` });
+    }
+
+    // ── Inventario ───────────────────────────────────────────
+    case "reporte_inventario": {
+      const r = await getInventoryReport();
+      return JSON.stringify(r);
+    }
+    case "alertas_stock_bajo": {
+      const r = await getLowStockAlerts();
+      return JSON.stringify(r.dry_supply_alerts ?? []);
+    }
+    case "obtener_tricapa_producto": {
+      if (!args?.product_id) throw new Error("se requiere el campo 'product_id'");
+      const r = await getProductTricapa(args.product_id);
+      return JSON.stringify(r);
+    }
+    case "convertir_sv_a_pt": {
+      if (!args?.product_id) throw new Error("se requiere 'product_id'");
+      if (!args?.quantity || args.quantity < 1) throw new Error("quantity debe ser >= 1");
+      if (!args?.lot_number) throw new Error("se requiere 'lot_number'");
+      await convertSVtoPT(args.product_id, Number(args.quantity), args.lot_number);
+      return JSON.stringify({
+        ok: true,
+        message: `Conversión SV→PT exitosa: ${args.quantity} unidades, lote ${args.lot_number}`,
+      });
+    }
+
+    // ── Resumen ──────────────────────────────────────────────
     case "resumen_sistema": {
-      const [products, sales, production] = await Promise.all([
+      const [products, sales, production, alerts] = await Promise.all([
         getProducts(),
         getSaleOrders(),
         getProductionOrders(),
+        getLowStockAlerts(),
       ]);
       return JSON.stringify({
         total_productos: products.length,
         total_pedidos_venta: sales.length,
         total_ordenes_produccion: production.length,
+        insumos_stock_bajo: (alerts.dry_supply_alerts ?? []).filter((a: any) => a.is_low).length,
       });
     }
+
     default:
       throw new Error(`herramienta desconocida: ${name}`);
   }
