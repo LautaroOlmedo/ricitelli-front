@@ -1,5 +1,13 @@
 // Tool executor — calls the gRPC clients based on tool name
 import { getProducts, getProductByID, createProduct } from "@/lib/grpc/productClient";
+import {
+  getCustomers,
+  getCustomerByID,
+  createCustomer,
+  deactivateCustomer,
+  placeOrder,
+  getOrdersByCustomer,
+} from "@/lib/grpc/customerClient";
 import { getSaleOrders, getSaleOrderByID } from "@/lib/grpc/saleOrderClient";
 import {
   getProductionOrders,
@@ -116,6 +124,49 @@ export async function executeTool(name: string, args: any): Promise<string> {
         ok: true,
         message: `Conversión SV→PT exitosa: ${args.quantity} unidades, lote ${args.lot_number}`,
       });
+    }
+
+    // ── Clientes ─────────────────────────────────────────────
+    case "listar_clientes": {
+      const r = await getCustomers();
+      return JSON.stringify(r);
+    }
+    case "obtener_cliente": {
+      if (!args?.id) throw new Error("se requiere el campo 'id'");
+      const r = await getCustomerByID(args.id);
+      return JSON.stringify(r);
+    }
+    case "crear_cliente": {
+      if (!args?.social_reason || !args?.market_type || !args?.group)
+        throw new Error("social_reason, market_type y group son requeridos");
+      const r = await createCustomer({
+        social_reason: args.social_reason,
+        market_type: args.market_type,
+        group: args.group,
+      });
+      return JSON.stringify(r);
+    }
+    case "desactivar_cliente": {
+      if (!args?.id) throw new Error("se requiere el campo 'id'");
+      const r = await deactivateCustomer(args.id);
+      return JSON.stringify(r);
+    }
+    case "pedidos_por_cliente": {
+      if (!args?.customer_id) throw new Error("se requiere el campo 'customer_id'");
+      const r = await getOrdersByCustomer(args.customer_id);
+      return JSON.stringify(r);
+    }
+    case "hacer_pedido_cliente": {
+      if (!args?.customer_id || !args?.items?.length)
+        throw new Error("customer_id e items son requeridos");
+      const r = await placeOrder({
+        customer_id: args.customer_id,
+        items: args.items,
+        currency: args.currency,
+        destination_country: args.destination_country,
+        sale_type: args.sale_type,
+      });
+      return JSON.stringify(r);
     }
 
     // ── Resumen ──────────────────────────────────────────────

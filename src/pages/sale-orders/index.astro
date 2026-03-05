@@ -69,7 +69,10 @@ const statusColor: Record<string, string> = {
           </thead>
           <tbody class="divide-y divide-border">
             {orders.map((o) => (
-              <tr class="hover:bg-muted/30 transition-colors">
+              <tr
+                class="hover:bg-muted/30 transition-colors cursor-pointer"
+                onclick={`window.location='/sale-orders/${o.id}'`}
+              >
                 <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{o.id}</td>
                 <td class="px-4 py-3 font-medium">{o.customer_id}</td>
                 <td class="px-4 py-3">

@@ -209,6 +209,97 @@ export const toolDefs = [
       },
     },
   },
+  // ── Clientes ─────────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "listar_clientes",
+      description: "Lista todos los clientes registrados con su razón social, tipo de mercado, grupo comercial y estado.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "obtener_cliente",
+      description: "Obtiene el detalle de un cliente por su ID.",
+      parameters: {
+        type: "object",
+        properties: { id: prop("string", "ID único del cliente.") },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "crear_cliente",
+      description: "Registra un nuevo cliente en el sistema.",
+      parameters: {
+        type: "object",
+        properties: {
+          social_reason: prop("string", "Razón social del cliente."),
+          market_type: prop("string", "Tipo de mercado: INTERNAL | EXTERNAL."),
+          group: prop("string", "Grupo comercial: DISTRIBUTOR | WINE_SHOP | RESTAURANT | HOTEL | RETAIL | PRIVATE | EXPORT_AGENT."),
+        },
+        required: ["social_reason", "market_type", "group"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "desactivar_cliente",
+      description: "Desactiva un cliente existente por su ID.",
+      parameters: {
+        type: "object",
+        properties: { id: prop("string", "ID único del cliente a desactivar.") },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "pedidos_por_cliente",
+      description: "Lista todos los pedidos de venta asociados a un cliente.",
+      parameters: {
+        type: "object",
+        properties: { customer_id: prop("string", "ID del cliente.") },
+        required: ["customer_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "hacer_pedido_cliente",
+      description: "Crea un pedido de venta en nombre de un cliente. El mercado (DOMESTIC/EXPORT) se infiere automáticamente del market_type del cliente.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_id: prop("string", "ID del cliente que realiza el pedido."),
+          items: {
+            type: "array",
+            description: "Productos solicitados con cantidad y precio.",
+            items: {
+              type: "object",
+              properties: {
+                product_id: prop("string", "ID del producto."),
+                quantity: { type: "integer", description: "Cantidad de unidades." },
+                unit_price: { type: "number", description: "Precio unitario." },
+              },
+              required: ["product_id", "quantity", "unit_price"],
+            },
+          },
+          currency: prop("string", "Moneda: ARS | USD | EUR | CAD. Default ARS."),
+          destination_country: prop("string", "País destino ISO-3166 alpha-2 (requerido para clientes EXTERNAL)."),
+          sale_type: prop("string", "Tipo de venta: SALE | SAMPLE_CUSTOMS | GIFT | INTERNAL | COMMERCIAL_SAMPLE. Default SALE."),
+        },
+        required: ["customer_id", "items"],
+      },
+    },
+  },
   // ── Resumen ──────────────────────────────────────────────
   {
     type: "function",

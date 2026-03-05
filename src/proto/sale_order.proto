@@ -51,9 +51,17 @@ message UpdateSaleOrderStatusRequest {
   string status = 2; // target status
 }
 
+// GetSaleOrdersByDateRangeRequest filters orders by creation date (inclusive).
+// Dates must be in YYYY-MM-DD format (e.g. "2025-04-01").
+message GetSaleOrdersByDateRangeRequest {
+  string from_date = 1; // start of range, inclusive (YYYY-MM-DD)
+  string to_date   = 2; // end of range, inclusive (YYYY-MM-DD)
+}
+
 service SaleOrderService {
-  rpc CreateSaleOrder(CreateSaleOrderRequest)                   returns (SaleOrder);
-  rpc GetSaleOrderByID(GetSaleOrderByIDRequest)                 returns (SaleOrder);
-  rpc GetSaleOrders(google.protobuf.Empty)                      returns (GetSaleOrdersResponse);
-  rpc UpdateSaleOrderStatus(UpdateSaleOrderStatusRequest)       returns (SaleOrder);
+  rpc CreateSaleOrder(CreateSaleOrderRequest)                         returns (SaleOrder);
+  rpc GetSaleOrderByID(GetSaleOrderByIDRequest)                       returns (SaleOrder);
+  rpc GetSaleOrders(google.protobuf.Empty)                            returns (GetSaleOrdersResponse);
+  rpc UpdateSaleOrderStatus(UpdateSaleOrderStatusRequest)             returns (SaleOrder);
+  rpc GetSaleOrdersByDateRange(GetSaleOrdersByDateRangeRequest)       returns (GetSaleOrdersResponse);
 }

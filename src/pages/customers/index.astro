@@ -1,0 +1,102 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getCustomers } from "@/lib/grpc/customerClient";
+
+let customers: any[] = [];
+let error = "";
+try {
+  customers = await getCustomers();
+} catch (e: any) {
+  error = e.message;
+}
+
+const groupLabel: Record<string, string> = {
+  DISTRIBUTOR:    "Distribuidor",
+  WINE_SHOP:      "Vinoteca",
+  RESTAURANT:     "Restaurante",
+  HOTEL:          "Hotel",
+  RETAIL:         "Retail",
+  PRIVATE:        "Privado",
+  EXPORT_AGENT:   "Agente Exportación",
+};
+
+const marketLabel: Record<string, string> = {
+  INTERNAL: "Interno",
+  EXTERNAL: "Externo",
+};
+---
+
+<AppLayout title="Clientes">
+  <div class="px-8 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Clientes</h1>
+        <p class="text-sm text-muted-foreground mt-1">
+          {error ? "Error al cargar" : `${customers.length} cliente${customers.length !== 1 ? "s" : ""} registrado${customers.length !== 1 ? "s" : ""}`}
+        </p>
+      </div>
+      <a
+        href="/customers/new"
+        class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+          <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+        </svg>
+        Nuevo Cliente
+      </a>
+    </div>
+
+    {error && (
+      <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive mb-6">
+        {error}
+      </div>
+    )}
+
+    {!error && customers.length === 0 && (
+      <div class="rounded-xl border border-border bg-card p-12 text-center">
+        <p class="text-muted-foreground text-sm">No hay clientes registrados aún.</p>
+        <a href="/customers/new" class="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+          Crear el primer cliente
+        </a>
+      </div>
+    )}
+
+    {customers.length > 0 && (
+      <div class="rounded-xl border border-border bg-card overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="border-b border-border bg-muted/40">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Razón Social</th>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Mercado</th>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Grupo</th>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Estado</th>
+              <th class="text-left px-4 py-3 font-medium text-muted-foreground">Creado</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-border">
+            {customers.map((c) => (
+              <tr class="hover:bg-muted/30 transition-colors">
+                <td class="px-4 py-3 font-medium">{c.social_reason}</td>
+                <td class="px-4 py-3 text-muted-foreground">{marketLabel[c.market_type] ?? c.market_type}</td>
+                <td class="px-4 py-3 text-muted-foreground">{groupLabel[c.group] ?? c.group}</td>
+                <td class="px-4 py-3">
+                  <span class:list={[
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                    c.active
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-800"
+                  ]}>
+                    {c.active ? "Activo" : "Inactivo"}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-muted-foreground text-xs">{c.created_at || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+</AppLayout>

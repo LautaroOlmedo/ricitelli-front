@@ -1,0 +1,129 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getSaleOrderByID } from "@/lib/grpc/saleOrderClient";
+
+const { id } = Astro.params;
+let order: any = null;
+let error = "";
+
+try {
+  order = await getSaleOrderByID(id!);
+} catch (e: any) {
+  error = e.message;
+}
+
+const statusColor: Record<string, string> = {
+  NEW:        "bg-secondary text-secondary-foreground",
+  CONFIRMED:  "bg-blue-100 text-blue-800",
+  INVOICED:   "bg-yellow-100 text-yellow-800",
+  DISPATCHED: "bg-green-100 text-green-800",
+  CANCELLED:  "bg-red-100 text-red-800",
+};
+
+const total = order?.items?.reduce(
+  (acc: number, item: any) => acc + item.quantity * item.unit_price,
+  0
+) ?? 0;
+---
+
+<AppLayout title="Pedido de Venta">
+  <div class="px-8 py-8 max-w-4xl">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-muted-foreground mb-8">
+      <a href="/sale-orders" class="hover:text-foreground transition-colors">Pedidos de Venta</a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+        <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="text-foreground font-medium font-mono text-xs">{id}</span>
+    </nav>
+
+    {error && (
+      <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        {error}
+      </div>
+    )}
+
+    {order && (
+      <div class="space-y-6">
+
+        <!-- Summary card -->
+        <div class="rounded-xl border border-border bg-card p-6">
+          <h1 class="text-lg font-semibold mb-4">Detalle de Pedido de Venta</h1>
+          <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+            <div>
+              <dt class="text-muted-foreground">ID</dt>
+              <dd class="font-mono text-xs mt-0.5">{order.id}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Cliente</dt>
+              <dd class="font-mono text-xs mt-0.5">{order.customer_id}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Estado</dt>
+              <dd class="mt-0.5">
+                <span class:list={[
+                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                  statusColor[order.status] ?? "bg-secondary text-secondary-foreground"
+                ]}>
+                  {order.status || "—"}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Creado</dt>
+              <dd class="mt-0.5">{order.created_at || "—"}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Mercado</dt>
+              <dd class="mt-0.5">{order.market || "—"}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Tipo de venta</dt>
+              <dd class="mt-0.5">{order.sale_type || "—"}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Moneda</dt>
+              <dd class="mt-0.5">{order.currency || "—"}</dd>
+            </div>
+            {order.destination_country && (
+              <div>
+                <dt class="text-muted-foreground">País destino</dt>
+                <dd class="mt-0.5">{order.destination_country}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+
+        <!-- Items -->
+        {(order.items ?? []).length > 0 && (
+          <div class="rounded-xl border border-border bg-card overflow-hidden">
+            <div class="px-6 py-4 border-b border-border">
+              <h2 class="text-sm font-semibold">Items del Pedido</h2>
+              <p class="text-xs text-muted-foreground mt-0.5">{order.items.length} producto{order.items.length !== 1 ? "s" : ""}</p>
+            </div>
+            <div class="divide-y divide-border">
+              {order.items.map((item: any) => (
+                <div class="px-6 py-4 flex items-center justify-between text-sm">
+                  <div>
+                    <span class="font-medium">Producto:</span>
+                    <span class="ml-2 font-mono text-xs text-muted-foreground">{item.product_id}</span>
+                  </div>
+                  <div class="flex items-center gap-6 text-sm text-muted-foreground">
+                    <span>Cant: <strong class="text-foreground">{item.quantity}</strong></span>
+                    <span>Precio unit: <strong class="text-foreground">{item.unit_price}</strong></span>
+                    <span>Subtotal: <strong class="text-foreground">{(item.quantity * item.unit_price).toFixed(2)}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div class="px-6 py-4 border-t border-border bg-muted/30 flex justify-end text-sm">
+              <span class="text-muted-foreground mr-2">Total:</span>
+              <strong>{order.currency} {total.toFixed(2)}</strong>
+            </div>
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+</AppLayout>

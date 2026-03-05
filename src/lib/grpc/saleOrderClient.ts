@@ -69,6 +69,15 @@ export async function createSaleOrder(input: CreateSaleOrderInput): Promise<Sale
   });
 }
 
+export async function getSaleOrdersByDateRange(fromDate: string, toDate: string): Promise<SaleOrder[]> {
+  return new Promise((resolve, reject) => {
+    getClient().GetSaleOrdersByDateRange({ from_date: fromDate, to_date: toDate }, (err: any, res: any) => {
+      if (err) return reject(err);
+      resolve((res?.sale_orders ?? []).map(mapOrder));
+    });
+  });
+}
+
 export async function updateSaleOrderStatus(id: string, status: string): Promise<SaleOrder> {
   return new Promise((resolve, reject) => {
     getClient().UpdateSaleOrderStatus({ id, status }, (err: any, res: any) => {

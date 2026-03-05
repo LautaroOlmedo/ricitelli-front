@@ -85,6 +85,31 @@ export interface StockTricapa {
   available_stock: number;  // physical - committed
 }
 
+// ── Customers ─────────────────────────────────────────────────────────────
+
+export interface Customer {
+  id: string;
+  social_reason: string;
+  market_type: string; // INTERNAL | EXTERNAL
+  group: string;       // DISTRIBUTOR | WINE_SHOP | RESTAURANT | HOTEL | RETAIL | PRIVATE | EXPORT_AGENT
+  active: boolean;
+  created_at: string;
+}
+
+export interface CreateCustomerInput {
+  social_reason: string;
+  market_type: string;
+  group: string;
+}
+
+export interface PlaceOrderInput {
+  customer_id: string;
+  items: SaleOrderItem[];
+  currency?: string;
+  destination_country?: string;
+  sale_type?: string;
+}
+
 // ── Inventory ─────────────────────────────────────────────────────────────
 
 export interface ProductTricapa {
