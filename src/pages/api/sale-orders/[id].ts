@@ -46,7 +46,8 @@ export const PATCH: APIRoute = async ({ params, request }) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    const httpStatus = e.code === 5 ? 404 : e.code === 9 ? 400 : 503;
+    console.error("[PATCH sale-order] gRPC error:", { code: e.code, details: e.details, message: e.message });
+    const httpStatus = e.code === 5 ? 404 : e.code === 3 || e.code === 9 ? 400 : 503;
     return new Response(JSON.stringify({ error: e.details ?? e.message }), {
       status: httpStatus,
       headers: { "Content-Type": "application/json" },

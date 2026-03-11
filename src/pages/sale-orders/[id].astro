@@ -78,8 +78,8 @@ const total = (order?.items ?? []).reduce(
 
           {pipeline.map((step, i) => {
             const isTerminal = order?.status === "DISPATCHED";
-            const isDone    = i < currentIdx || (isTerminal && i === currentIdx);
-            const isCurrent = !isTerminal && i === currentIdx;
+            const isDone    = i <= currentIdx;
+            const isCurrent = !isTerminal && i === currentIdx + 1;
             return (
               <div class="flex flex-col items-center gap-2 z-10 flex-1">
                 <div class:list={[
