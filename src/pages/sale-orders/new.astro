@@ -1,12 +1,14 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getProducts } from "@/lib/grpc/productClient";
+import { getCustomers } from "@/lib/grpc/customerClient";
 
 let products: any[] = [];
+let customers: any[] = [];
 try {
-  products = await getProducts();
+  [products, customers] = await Promise.all([getProducts(), getCustomers()]);
 } catch {
-  /* continue with empty list */
+  /* continue with empty lists */
 }
 ---
 
@@ -36,20 +38,28 @@ try {
       <div class="rounded-xl border border-border bg-card p-6 space-y-4">
         <div>
           <h2 class="text-sm font-semibold">Cliente</h2>
-          <p class="text-xs text-muted-foreground mt-0.5">Identificación del cliente para el pedido</p>
+          <p class="text-xs text-muted-foreground mt-0.5">Buscá por razón social</p>
         </div>
         <div class="space-y-1.5">
-          <label for="customer-id" class="text-sm font-medium">
-            ID del Cliente <span class="text-destructive ml-0.5">*</span>
+          <label for="customer-search" class="text-sm font-medium">
+            Cliente <span class="text-destructive ml-0.5">*</span>
           </label>
-          <input
-            id="customer-id"
-            type="text"
-            placeholder="ej: cliente-001"
-            autocomplete="off"
-            class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
-          />
-          <p id="customer-error" class="hidden text-xs text-destructive mt-1">El ID del cliente es obligatorio.</p>
+          <!-- hidden field stores the actual UUID -->
+          <input type="hidden" id="customer-id" />
+          <div class="relative">
+            <input
+              id="customer-search"
+              type="text"
+              placeholder="Escribí para buscar…"
+              autocomplete="off"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+            />
+            <ul
+              id="customer-dropdown"
+              class="hidden absolute z-20 mt-1 w-full rounded-lg border border-border bg-card shadow-lg max-h-52 overflow-y-auto text-sm"
+            ></ul>
+          </div>
+          <p id="customer-error" class="hidden text-xs text-destructive mt-1">Seleccioná un cliente válido.</p>
         </div>
       </div>
 
@@ -162,7 +172,7 @@ try {
   </div>
 </AppLayout>
 
-<script define:vars={{ products }}>
+<script define:vars={{ products, customers }}>
   let rowIdx = 0;
 
   function updateCounter() {
@@ -213,14 +223,60 @@ try {
 
   updateCounter();
 
-  // Form submit
+  // ── Customer autocomplete ──────────────────────────────
+  const customerSearch = document.getElementById("customer-search");
+  const customerHidden = document.getElementById("customer-id");
+  const customerDropdown = document.getElementById("customer-dropdown");
+  const customerError = document.getElementById("customer-error");
+
+  function renderDropdown(items) {
+    customerDropdown.innerHTML = "";
+    if (items.length === 0) {
+      customerDropdown.classList.add("hidden");
+      return;
+    }
+    items.forEach((c) => {
+      const li = document.createElement("li");
+      li.className = "px-3 py-2.5 cursor-pointer hover:bg-muted/60 transition-colors flex flex-col";
+      li.innerHTML = `<span class="font-medium">${c.social_reason}</span>`;
+      li.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // prevent blur before click
+        customerSearch.value = c.social_reason;
+        customerHidden.value = c.id;
+        customerDropdown.classList.add("hidden");
+        customerError.classList.add("hidden");
+      });
+      customerDropdown.appendChild(li);
+    });
+    customerDropdown.classList.remove("hidden");
+  }
+
+  customerSearch.addEventListener("input", () => {
+    const q = customerSearch.value.trim().toLowerCase();
+    customerHidden.value = "";
+    if (!q) { customerDropdown.classList.add("hidden"); return; }
+    const matches = customers.filter((c) =>
+      c.social_reason.toLowerCase().includes(q)
+    );
+    renderDropdown(matches);
+  });
+
+  customerSearch.addEventListener("focus", () => {
+    if (customerSearch.value.trim() && !customerHidden.value) {
+      customerSearch.dispatchEvent(new Event("input"));
+    }
+  });
+
+  customerSearch.addEventListener("blur", () => {
+    setTimeout(() => customerDropdown.classList.add("hidden"), 150);
+  });
+
+  // ── Form submit ────────────────────────────────────────
   const form = document.getElementById("order-form");
   const feedback = document.getElementById("form-feedback");
   const btnSubmit = document.getElementById("btn-submit");
   const spinner = document.getElementById("submit-spinner");
   const submitLabel = document.getElementById("submit-label");
-  const customerInput = document.getElementById("customer-id");
-  const customerError = document.getElementById("customer-error");
 
   function showError(msg) {
     feedback.className =
@@ -240,10 +296,10 @@ try {
     e.preventDefault();
     feedback.classList.add("hidden");
 
-    const customerId = customerInput.value.trim();
+    const customerId = customerHidden.value.trim();
     if (!customerId) {
       customerError.classList.remove("hidden");
-      customerInput.focus();
+      customerSearch.focus();
       return;
     }
     customerError.classList.add("hidden");
@@ -297,7 +353,4 @@ try {
     }
   });
 
-  customerInput.addEventListener("input", () => {
-    if (customerInput.value.trim()) customerError.classList.add("hidden");
-  });
 </script>
