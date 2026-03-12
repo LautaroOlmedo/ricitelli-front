@@ -1,11 +1,13 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getProductionOrders } from "@/lib/grpc/productionOrderClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
 let orders: any[] = [];
 let loadError = "";
 try {
-  orders = await getProductionOrders();
+  orders = await getProductionOrders(token);
 } catch (e: any) {
   loadError = e.message;
 }

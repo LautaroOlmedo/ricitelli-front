@@ -2,11 +2,13 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getProducts } from "@/lib/grpc/productClient";
 import { getCustomers } from "@/lib/grpc/customerClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
 let products: any[] = [];
 let customers: any[] = [];
 try {
-  [products, customers] = await Promise.all([getProducts(), getCustomers()]);
+  [products, customers] = await Promise.all([getProducts(token), getCustomers(token)]);
 } catch {
   /* continue with empty lists */
 }

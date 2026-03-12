@@ -1,53 +1,63 @@
 import * as grpc from "@grpc/grpc-js";
-import { ProductServiceClient } from "@/gen/product";
+import * as protoLoader from "@grpc/proto-loader";
+import path from "path";
 import type { Product, BillOfDrySupply } from "./types";
 
-const GRPC_HOST = process.env.GRPC_PRODUCT_HOST ?? "localhost:50051";
+const PROTO_PATH = path.join(process.cwd(), "src/proto/product.proto");
+const HOST = process.env.GRPC_PRODUCT_HOST ?? "localhost:50051";
 
-let _client: InstanceType<typeof ProductServiceClient> | null = null;
+let _client: any = null;
 
-function getClient(): InstanceType<typeof ProductServiceClient> {
+function getClient() {
   if (!_client) {
-    _client = new ProductServiceClient(
-      GRPC_HOST,
-      grpc.credentials.createInsecure(),
+    const pkgDef = protoLoader.loadSync(PROTO_PATH, {
+      keepCase: true,
+      longs: String,
+      enums: String,
+      defaults: true,
+      oneofs: true,
+    });
+    const proto = grpc.loadPackageDefinition(pkgDef) as any;
+    _client = new proto.product.ProductService(
+      HOST,
+      grpc.credentials.createInsecure()
     );
   }
   return _client;
 }
 
-export async function getProducts(): Promise<Product[]> {
-  const client = getClient();
+function meta(token?: string): grpc.Metadata {
+  const m = new grpc.Metadata();
+  if (token) m.add("authorization", `Bearer ${token}`);
+  return m;
+}
+
+function mapProduct(r: any): Product {
+  return {
+    id: r.id ?? "",
+    name: r.name ?? "",
+    bom: (r.bom ?? []).map((b: any) => ({
+      dry_supply_id: b.dry_supply_id ?? "",
+      quantity_per_unit: Number(b.quantity_per_unit ?? 0),
+    })),
+  };
+}
+
+export async function getProducts(token?: string): Promise<Product[]> {
   return new Promise((resolve, reject) => {
-    client.getProducts({}, (err, res) => {
+    getClient().GetProducts({}, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
-      const products = (res?.products ?? []).map((p) => ({
-        id: p.id,
-        name: p.name,
-        bom: p.bom.map((b) => ({
-          dry_supply_id: b.drySupplyId,
-          quantity_per_unit: Number(b.quantityPerUnit),
-        })),
-      }));
-      resolve(products);
+      resolve((res?.products ?? []).map(mapProduct));
     });
   });
 }
 
-export async function getProductByID(id: string): Promise<Product> {
-  const client = getClient();
+export async function getProductByID(id: string, token?: string): Promise<Product> {
   return new Promise((resolve, reject) => {
-    client.getProductById({ id }, (err, res) => {
+    getClient().GetProductByID({ id }, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       if (!res) return reject(new Error("No response from server"));
-      resolve({
-        id: res.id,
-        name: res.name,
-        bom: res.bom.map((b) => ({
-          dry_supply_id: b.drySupplyId,
-          quantity_per_unit: Number(b.quantityPerUnit),
-        })),
-      });
+      resolve(mapProduct(res));
     });
   });
 }
@@ -55,21 +65,47 @@ export async function getProductByID(id: string): Promise<Product> {
 export async function createProduct(
   name: string,
   bom: BillOfDrySupply[],
+  token?: string
 ): Promise<void> {
-  const client = getClient();
   return new Promise((resolve, reject) => {
-    client.createProduct(
+    getClient().CreateProduct(
       {
         name,
         bom: bom.map((b) => ({
-          drySupplyId: b.dry_supply_id,
-          quantityPerUnit: b.quantity_per_unit,
+          dry_supply_id: b.dry_supply_id,
+          quantity_per_unit: b.quantity_per_unit,
         })),
       },
-      (err) => {
+      meta(token),
+      (err: any) => {
         if (err) return reject(err);
         resolve();
+      }
+    );
+  });
+}
+
+export async function updateProduct(
+  id: string,
+  name: string,
+  bom: BillOfDrySupply[],
+  token?: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    getClient().UpdateProduct(
+      {
+        id,
+        name,
+        bods: bom.map((b) => ({
+          dry_supply_id: b.dry_supply_id,
+          quantity_per_unit: b.quantity_per_unit,
+        })),
       },
+      meta(token),
+      (err: any) => {
+        if (err) return reject(err);
+        resolve();
+      }
     );
   });
 }

@@ -1,9 +1,11 @@
 import type { APIRoute } from "astro";
 import { getProductionOrders } from "@/lib/grpc/productionOrderClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ cookies }) => {
   try {
-    const orders = await getProductionOrders();
+    const token = cookies.get(COOKIE_NAME)?.value;
+    const orders = await getProductionOrders(token);
     return new Response(JSON.stringify(orders), {
       status: 200,
       headers: { "Content-Type": "application/json" },

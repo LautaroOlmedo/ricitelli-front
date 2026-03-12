@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
 import { getSaleOrderByID, updateSaleOrderStatus } from "@/lib/grpc/saleOrderClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, cookies }) => {
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: "id requerido" }), {
@@ -10,7 +11,8 @@ export const GET: APIRoute = async ({ params }) => {
     });
   }
   try {
-    const order = await getSaleOrderByID(id);
+    const token = cookies.get(COOKIE_NAME)?.value;
+    const order = await getSaleOrderByID(id, token);
     return new Response(JSON.stringify(order), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -24,7 +26,7 @@ export const GET: APIRoute = async ({ params }) => {
   }
 };
 
-export const PATCH: APIRoute = async ({ params, request }) => {
+export const PATCH: APIRoute = async ({ params, request, cookies }) => {
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: "id requerido" }), {
@@ -33,6 +35,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     });
   }
   try {
+    const token = cookies.get(COOKIE_NAME)?.value;
     const { status: newStatus } = await request.json();
     if (!newStatus) {
       return new Response(JSON.stringify({ error: "status requerido" }), {
@@ -40,7 +43,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
         headers: { "Content-Type": "application/json" },
       });
     }
-    const order = await updateSaleOrderStatus(id, newStatus);
+    const order = await updateSaleOrderStatus(id, newStatus, token);
     return new Response(JSON.stringify(order), {
       status: 200,
       headers: { "Content-Type": "application/json" },

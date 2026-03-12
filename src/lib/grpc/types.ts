@@ -70,10 +70,11 @@ export interface ProductionOrder {
 
 export interface DrySupply {
   id: string;
-  code: string;     // SKU, e.g. "HEYM-CTR-JP"
+  code: string;          // SKU, e.g. "HEYM-CTR-JP"
   name: string;
-  category: string; // LABEL | CONTRAETIQUETA | BOX | CORK | CAPSULE | BOTTLE | OTHER
-  unit: string;     // UNIT | BOX | KG
+  category: string;      // LABEL | CONTRAETIQUETA | BOX | CORK | CAPSULE | BOTTLE | OTHER
+  unit: string;          // UNIT | BOX | KG
+  reorder_point: number; // minimum alert threshold (0 = no alert)
 }
 
 export interface StockTricapa {

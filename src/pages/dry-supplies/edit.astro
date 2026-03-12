@@ -1,0 +1,144 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getDrySupplyByID } from "@/lib/grpc/drySupplyClient";
+import { COOKIE_NAME } from "@/lib/auth";
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+const id = Astro.url.searchParams.get("id") ?? "";
+
+let supply: any = null;
+let loadError = "";
+
+if (!id) return Astro.redirect("/dry-supplies");
+
+try {
+  supply = await getDrySupplyByID(id, token);
+} catch (e: any) {
+  loadError = e.details ?? e.message ?? "Error al cargar";
+}
+---
+
+<AppLayout title="Editar Insumo">
+  <div class="px-8 py-8 max-w-xl mx-auto">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+      <a href="/dry-supplies" class="hover:text-foreground transition-colors">Insumos</a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+        <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      {supply && (
+        <>
+          <a href={`/dry-supplies/supply-detail?id=${id}`} class="hover:text-foreground transition-colors">{supply.name}</a>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+            <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </>
+      )}
+      <span class="text-foreground font-medium">Editar</span>
+    </nav>
+
+    <h1 class="text-2xl font-semibold tracking-tight mb-6">Editar Insumo</h1>
+
+    {loadError && (
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive mb-6">{loadError}</div>
+    )}
+
+    {supply && (
+      <div class="rounded-xl border border-border bg-card p-6">
+        <form id="edit-form" class="space-y-4">
+          <input type="hidden" id="supply-id" value={supply.id} />
+
+          <div>
+            <label class="block text-sm font-medium mb-1.5">Código (SKU)</label>
+            <p class="w-full rounded-lg border border-input bg-muted/50 px-3 py-2.5 text-sm font-mono text-muted-foreground">
+              {supply.code}
+            </p>
+            <p class="text-xs text-muted-foreground mt-1">El código no es editable.</p>
+          </div>
+
+          <div>
+            <label for="supply-name" class="block text-sm font-medium mb-1.5">
+              Nombre <span class="text-destructive">*</span>
+            </label>
+            <input
+              id="supply-name"
+              type="text"
+              required
+              value={supply.name}
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div>
+            <label for="reorder-point" class="block text-sm font-medium mb-1.5">Punto de Reorden</label>
+            <input
+              id="reorder-point"
+              type="number"
+              min="0"
+              value={supply.reorder_point ?? 0}
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p class="text-xs text-muted-foreground mt-1">Cantidad mínima de alerta. 0 = sin alerta.</p>
+          </div>
+
+          <p id="error-msg" class="hidden text-sm text-destructive"></p>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <a
+              href={`/dry-supplies/supply-detail?id=${supply.id}`}
+              class="inline-flex items-center rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Cancelar
+            </a>
+            <button
+              type="submit"
+              id="save-btn"
+              class="inline-flex items-center rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              Guardar cambios
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+  </div>
+</AppLayout>
+
+<script>
+  const form = document.getElementById("edit-form");
+  const errorMsg = document.getElementById("error-msg")!;
+  const saveBtn = document.getElementById("save-btn") as HTMLButtonElement;
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorMsg.classList.add("hidden");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Guardando...";
+
+    const id = (document.getElementById("supply-id") as HTMLInputElement).value;
+    const name = (document.getElementById("supply-name") as HTMLInputElement).value.trim();
+    const reorder_point = parseInt((document.getElementById("reorder-point") as HTMLInputElement).value || "0", 10);
+
+    try {
+      const res = await fetch(`/api/dry-supplies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, reorder_point }),
+      });
+      if (res.ok) {
+        window.location.href = `/dry-supplies/supply-detail?id=${id}`;
+      } else {
+        const d = await res.json().catch(() => ({}));
+        errorMsg.textContent = d.error ?? `Error ${res.status}`;
+        errorMsg.classList.remove("hidden");
+      }
+    } catch {
+      errorMsg.textContent = "Error de red.";
+      errorMsg.classList.remove("hidden");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Guardar cambios";
+    }
+  });
+</script>

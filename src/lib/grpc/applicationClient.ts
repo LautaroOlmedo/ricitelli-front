@@ -37,9 +37,15 @@ export interface CreateOrderInput {
   sale_type?: string;          // SALE | SAMPLE_CUSTOMS | GIFT | INTERNAL | COMMERCIAL_SAMPLE
 }
 
-export async function createOrder(input: CreateOrderInput): Promise<{ message: string }> {
+function meta(token?: string): grpc.Metadata {
+  const m = new grpc.Metadata();
+  if (token) m.add("authorization", `Bearer ${token}`);
+  return m;
+}
+
+export async function createOrder(input: CreateOrderInput, token?: string): Promise<{ message: string }> {
   return new Promise((resolve, reject) => {
-    getClient().CreateOrder(input, (err: any, res: any) => {
+    getClient().CreateOrder(input, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve(res);
     });

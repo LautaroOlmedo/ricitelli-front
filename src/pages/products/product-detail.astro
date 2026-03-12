@@ -1,0 +1,147 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getProductByID } from "@/lib/grpc/productClient";
+import { getDrySupplies } from "@/lib/grpc/drySupplyClient";
+import { getProductTricapa } from "@/lib/grpc/inventoryClient";
+import { COOKIE_NAME } from "@/lib/auth";
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+const id = Astro.url.searchParams.get("id") ?? "";
+
+let product: any = null;
+let tricapa: any = null;
+let drySupplyMap: Record<string, { code: string; name: string; category: string }> = {};
+let loadError = "";
+
+if (!id) return Astro.redirect("/products");
+
+try {
+  const [p, supplies, tri] = await Promise.all([
+    getProductByID(id, token),
+    getDrySupplies(token).catch(() => []),
+    getProductTricapa(id, token).catch(() => null),
+  ]);
+  product = p;
+  tricapa = tri;
+  drySupplyMap = Object.fromEntries(
+    (supplies as any[]).map((s) => [s.id, { code: s.code, name: s.name, category: s.category }])
+  );
+} catch (e: any) {
+  loadError = e.details ?? e.message ?? "Error al cargar";
+}
+
+const categoryLabel: Record<string, string> = {
+  LABEL: "Etiqueta", CONTRAETIQUETA: "Contraetiqueta", BOX: "Caja",
+  CORK: "Corcho", CAPSULE: "Cápsula", BOTTLE: "Botella", OTHER: "Otro",
+};
+---
+
+<AppLayout title={product?.name ?? "Producto"}>
+  <div class="px-8 py-8 max-w-4xl mx-auto">
+
+    {loadError && (
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
+        <p class="text-sm text-destructive">{loadError}</p>
+        <a href="/products" class="mt-4 inline-flex text-sm text-primary hover:underline">← Volver a productos</a>
+      </div>
+    )}
+
+    {product && (
+      <>
+        <!-- Breadcrumb -->
+        <nav class="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+          <a href="/products" class="hover:text-foreground transition-colors">Productos</a>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+            <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="text-foreground font-medium">{product.name}</span>
+        </nav>
+
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-8">
+          <h1 class="text-2xl font-semibold tracking-tight">{product.name}</h1>
+          <a
+            href={`/products/edit?id=${product.id}`}
+            class="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3.5 py-2 text-sm font-medium hover:bg-accent transition-colors"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Editar
+          </a>
+        </div>
+
+        <!-- Stock Tricapa -->
+        {tricapa && (
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: "Sin Vestir (SV)", value: tricapa.undressed_stock, color: "text-foreground" },
+              { label: "PT Físico",       value: tricapa.dressed_physical, color: "text-foreground" },
+              { label: "PT Comprometido", value: tricapa.dressed_committed, color: "text-amber-600" },
+              { label: "PT Disponible",   value: tricapa.dressed_available, color: tricapa.dressed_available > 0 ? "text-green-600" : "text-destructive" },
+            ].map(({ label, value, color }) => (
+              <div class="rounded-xl border border-border bg-card p-5">
+                <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+                <p class:list={["mt-2 text-3xl font-bold tracking-tight", color]}>{value.toLocaleString("es-AR")}</p>
+                <p class="text-xs text-muted-foreground mt-1">unidades</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <!-- BOM -->
+        <div class="rounded-xl border border-border bg-card overflow-hidden mb-6">
+          <div class="px-5 py-4 border-b border-border">
+            <h2 class="text-sm font-semibold">Bill of Materials (BOM)</h2>
+            <p class="text-xs text-muted-foreground mt-0.5">Insumos requeridos por unidad de producto</p>
+          </div>
+
+          {product.bom.length === 0 ? (
+            <div class="px-5 py-8 text-center">
+              <p class="text-sm text-muted-foreground">Sin materiales definidos en el BOM.</p>
+            </div>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-muted/30 border-b border-border">
+                  <tr>
+                    <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Código</th>
+                    <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Insumo</th>
+                    <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoría</th>
+                    <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Cant. por unidad</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  {product.bom.map((b: any) => {
+                    const supply = drySupplyMap[b.dry_supply_id];
+                    return (
+                      <tr class="hover:bg-muted/30 transition-colors">
+                        <td class="px-5 py-3 font-mono text-xs text-muted-foreground">
+                          {supply?.code ?? b.dry_supply_id.slice(0, 8)}
+                        </td>
+                        <td class="px-5 py-3">
+                          {supply ? (
+                            <a href={`/dry-supplies/supply-detail?id=${b.dry_supply_id}`} class="font-medium hover:text-primary hover:underline transition-colors">
+                              {supply.name}
+                            </a>
+                          ) : (
+                            <span class="font-mono text-xs text-muted-foreground">{b.dry_supply_id}</span>
+                          )}
+                        </td>
+                        <td class="px-5 py-3 text-muted-foreground text-xs">
+                          {supply ? (categoryLabel[supply.category] ?? supply.category) : "—"}
+                        </td>
+                        <td class="px-5 py-3 text-right font-semibold">{b.quantity_per_unit}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </>
+    )}
+  </div>
+</AppLayout>

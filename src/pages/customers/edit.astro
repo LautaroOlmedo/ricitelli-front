@@ -1,0 +1,159 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getCustomerByID } from "@/lib/grpc/customerClient";
+import { COOKIE_NAME } from "@/lib/auth";
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+const id = Astro.url.searchParams.get("id") ?? "";
+
+let customer: any = null;
+let loadError = "";
+
+if (!id) return Astro.redirect("/customers");
+
+try {
+  customer = await getCustomerByID(id, token);
+} catch (e: any) {
+  loadError = e.details ?? e.message ?? "Error al cargar";
+}
+
+const groups = [
+  { value: "DISTRIBUTOR",  label: "Distribuidor" },
+  { value: "WINE_SHOP",    label: "Vinoteca" },
+  { value: "RESTAURANT",   label: "Restaurante" },
+  { value: "HOTEL",        label: "Hotel" },
+  { value: "RETAIL",       label: "Retail" },
+  { value: "PRIVATE",      label: "Privado" },
+  { value: "EXPORT_AGENT", label: "Agente Exportación" },
+];
+---
+
+<AppLayout title="Editar Cliente">
+  <div class="px-8 py-8 max-w-xl mx-auto">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+      <a href="/customers" class="hover:text-foreground transition-colors">Clientes</a>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+        <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      {customer && (
+        <>
+          <a href={`/customers/${id}`} class="hover:text-foreground transition-colors">{customer.social_reason}</a>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+            <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </>
+      )}
+      <span class="text-foreground font-medium">Editar</span>
+    </nav>
+
+    <h1 class="text-2xl font-semibold tracking-tight mb-6">Editar Cliente</h1>
+
+    {loadError && (
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive mb-6">{loadError}</div>
+    )}
+
+    {customer && (
+      <div class="rounded-xl border border-border bg-card p-6">
+        <form id="edit-form" class="space-y-4">
+          <input type="hidden" id="customer-id" value={customer.id} />
+
+          <div>
+            <label for="social-reason" class="block text-sm font-medium mb-1.5">
+              Razón Social <span class="text-destructive">*</span>
+            </label>
+            <input
+              id="social-reason"
+              type="text"
+              required
+              value={customer.social_reason}
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          <div>
+            <label for="market-type" class="block text-sm font-medium mb-1.5">Tipo de Mercado</label>
+            <select
+              id="market-type"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="INTERNAL" selected={customer.market_type === "INTERNAL"}>Mercado Interno</option>
+              <option value="EXTERNAL" selected={customer.market_type === "EXTERNAL"}>Exportación</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="group" class="block text-sm font-medium mb-1.5">Grupo Comercial</label>
+            <select
+              id="group"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {groups.map((g) => (
+                <option value={g.value} selected={customer.group === g.value}>{g.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <p id="error-msg" class="hidden text-sm text-destructive"></p>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <a
+              href={`/customers/${customer.id}`}
+              class="inline-flex items-center rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Cancelar
+            </a>
+            <button
+              type="submit"
+              id="save-btn"
+              class="inline-flex items-center rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+            >
+              Guardar cambios
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+  </div>
+</AppLayout>
+
+<script>
+  const form = document.getElementById("edit-form");
+  const errorMsg = document.getElementById("error-msg")!;
+  const saveBtn = document.getElementById("save-btn") as HTMLButtonElement;
+
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorMsg.classList.add("hidden");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Guardando...";
+
+    const id = (document.getElementById("customer-id") as HTMLInputElement).value;
+    const social_reason = (document.getElementById("social-reason") as HTMLInputElement).value.trim();
+    const market_type = (document.getElementById("market-type") as HTMLSelectElement).value;
+    const group = (document.getElementById("group") as HTMLSelectElement).value;
+
+    try {
+      const res = await fetch(`/api/customers/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ social_reason, market_type, group }),
+      });
+
+      if (res.ok) {
+        window.location.href = `/customers/${id}`;
+      } else {
+        const d = await res.json().catch(() => ({}));
+        errorMsg.textContent = d.error ?? `Error ${res.status}`;
+        errorMsg.classList.remove("hidden");
+      }
+    } catch {
+      errorMsg.textContent = "Error de red.";
+      errorMsg.classList.remove("hidden");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Guardar cambios";
+    }
+  });
+</script>

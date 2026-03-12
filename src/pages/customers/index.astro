@@ -1,11 +1,13 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getCustomers } from "@/lib/grpc/customerClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
 let customers: any[] = [];
 let error = "";
 try {
-  customers = await getCustomers();
+  customers = await getCustomers(token);
 } catch (e: any) {
   error = e.message;
 }
@@ -73,12 +75,17 @@ const marketLabel: Record<string, string> = {
               <th class="text-left px-4 py-3 font-medium text-muted-foreground">Grupo</th>
               <th class="text-left px-4 py-3 font-medium text-muted-foreground">Estado</th>
               <th class="text-left px-4 py-3 font-medium text-muted-foreground">Creado</th>
+              <th class="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-border">
             {customers.map((c) => (
               <tr class="hover:bg-muted/30 transition-colors">
-                <td class="px-4 py-3 font-medium">{c.social_reason}</td>
+                <td class="px-4 py-3 font-medium">
+                  <a href={`/customers/client-detail?id=${c.id}`} class="hover:text-primary hover:underline transition-colors">
+                    {c.social_reason}
+                  </a>
+                </td>
                 <td class="px-4 py-3 text-muted-foreground">{marketLabel[c.market_type] ?? c.market_type}</td>
                 <td class="px-4 py-3 text-muted-foreground">{groupLabel[c.group] ?? c.group}</td>
                 <td class="px-4 py-3">
@@ -92,6 +99,14 @@ const marketLabel: Record<string, string> = {
                   </span>
                 </td>
                 <td class="px-4 py-3 text-muted-foreground text-xs">{c.created_at || "—"}</td>
+                <td class="px-4 py-3 text-right">
+                  <a
+                    href={`/customers/edit?id=${c.id}`}
+                    class="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    Editar
+                  </a>
+                </td>
               </tr>
             ))}
           </tbody>

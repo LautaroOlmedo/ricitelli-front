@@ -6,9 +6,6 @@ option go_package = "your/module/path/productpb";
 
 import "google/protobuf/empty.proto";
 
-
-
-
 // Represents a manufacturable product with its bill of materials (BOM).
 message Product {
   string id = 1;
@@ -18,13 +15,19 @@ message Product {
 
 // Represents the quantity of a dry supply required per unit of product.
 message BillOfDrySupply {
-  string dry_supply_id = 1;
+  string dry_supply_id     = 1;
   uint64 quantity_per_unit = 2;
 }
 
 message CreateProductRequest {
   string name = 1;
   repeated BillOfDrySupply bom = 2;
+}
+
+message UpdateProductRequest {
+  string id   = 1;
+  string name = 2;
+  repeated BillOfDrySupply bods = 3;
 }
 
 message GetProductByIDRequest {
@@ -36,16 +39,8 @@ message GetProductsResponse {
 }
 
 service ProductService {
-
-  // Creates a product. Returns OK or gRPC error.
-  rpc CreateProduct(CreateProductRequest)
-      returns (google.protobuf.Empty);
-
-  // Returns a single product by ID.
-  rpc GetProductByID(GetProductByIDRequest)
-      returns (Product);
-
-  // Returns all products.
-  rpc GetProducts(google.protobuf.Empty)
-      returns (GetProductsResponse);
+  rpc CreateProduct(CreateProductRequest)   returns (google.protobuf.Empty);
+  rpc UpdateProduct(UpdateProductRequest)   returns (google.protobuf.Empty);
+  rpc GetProductByID(GetProductByIDRequest) returns (Product);
+  rpc GetProducts(google.protobuf.Empty)    returns (GetProductsResponse);
 }

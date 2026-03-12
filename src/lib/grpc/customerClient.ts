@@ -28,6 +28,12 @@ function getClient() {
   return _client;
 }
 
+function meta(token?: string): grpc.Metadata {
+  const m = new grpc.Metadata();
+  if (token) m.add("authorization", `Bearer ${token}`);
+  return m;
+}
+
 function mapCustomer(r: any): Customer {
   return {
     id: r.id ?? "",
@@ -39,45 +45,60 @@ function mapCustomer(r: any): Customer {
   };
 }
 
-export async function getCustomers(): Promise<Customer[]> {
+export async function getCustomers(token?: string): Promise<Customer[]> {
   return new Promise((resolve, reject) => {
-    getClient().GetCustomers({}, (err: any, res: any) => {
+    getClient().GetCustomers({}, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve((res?.customers ?? []).map(mapCustomer));
     });
   });
 }
 
-export async function getCustomerByID(id: string): Promise<Customer> {
+export async function getCustomerByID(id: string, token?: string): Promise<Customer> {
   return new Promise((resolve, reject) => {
-    getClient().GetCustomerByID({ id }, (err: any, res: any) => {
+    getClient().GetCustomerByID({ id }, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve(mapCustomer(res));
     });
   });
 }
 
-export async function createCustomer(input: CreateCustomerInput): Promise<Customer> {
+export async function createCustomer(input: CreateCustomerInput, token?: string): Promise<Customer> {
   return new Promise((resolve, reject) => {
-    getClient().CreateCustomer(input, (err: any, res: any) => {
+    getClient().CreateCustomer(input, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve(mapCustomer(res));
     });
   });
 }
 
-export async function deactivateCustomer(id: string): Promise<Customer> {
+export async function updateCustomer(
+  id: string,
+  social_reason: string,
+  market_type: string,
+  group: string,
+  token?: string
+): Promise<Customer> {
   return new Promise((resolve, reject) => {
-    getClient().DeactivateCustomer({ id }, (err: any, res: any) => {
+    getClient().UpdateCustomer({ id, social_reason, market_type, group }, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve(mapCustomer(res));
     });
   });
 }
 
-export async function placeOrder(input: PlaceOrderInput): Promise<SaleOrder> {
+export async function deactivateCustomer(id: string, token?: string): Promise<Customer> {
   return new Promise((resolve, reject) => {
-    getClient().PlaceOrder(input, (err: any, res: any) => {
+    getClient().DeactivateCustomer({ id }, meta(token), (err: any, res: any) => {
+      if (err) return reject(err);
+      resolve(mapCustomer(res));
+    });
+  });
+}
+
+export async function placeOrder(input: PlaceOrderInput, token?: string): Promise<SaleOrder> {
+  return new Promise((resolve, reject) => {
+    getClient().PlaceOrder(input, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve({
         id: res.id ?? "",
@@ -94,18 +115,18 @@ export async function placeOrder(input: PlaceOrderInput): Promise<SaleOrder> {
   });
 }
 
-export async function searchCustomersBySocialReason(query: string): Promise<Customer[]> {
+export async function searchCustomersBySocialReason(query: string, token?: string): Promise<Customer[]> {
   return new Promise((resolve, reject) => {
-    getClient().SearchCustomersBySocialReason({ query }, (err: any, res: any) => {
+    getClient().SearchCustomersBySocialReason({ query }, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve((res?.customers ?? []).map(mapCustomer));
     });
   });
 }
 
-export async function getOrdersByCustomer(customerId: string): Promise<SaleOrder[]> {
+export async function getOrdersByCustomer(customerId: string, token?: string): Promise<SaleOrder[]> {
   return new Promise((resolve, reject) => {
-    getClient().GetOrdersByCustomer({ customer_id: customerId }, (err: any, res: any) => {
+    getClient().GetOrdersByCustomer({ customer_id: customerId }, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve(
         (res?.orders ?? []).map((r: any) => ({

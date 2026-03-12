@@ -25,34 +25,41 @@ function getClient() {
   return client;
 }
 
-function call<T>(method: string, req: object = {}): Promise<T> {
+function meta(token?: string): grpc.Metadata {
+  const m = new grpc.Metadata();
+  if (token) m.add("authorization", `Bearer ${token}`);
+  return m;
+}
+
+function call<T>(method: string, req: object = {}, token?: string): Promise<T> {
   return new Promise((res, rej) =>
-    getClient()[method](req, (err: any, resp: T) =>
+    getClient()[method](req, meta(token), (err: any, resp: T) =>
       err ? rej(err) : res(resp)
     )
   );
 }
 
-export async function getInventoryReport(): Promise<InventoryReport> {
-  const r = await call<any>("GetInventoryReport", {});
+export async function getInventoryReport(token?: string): Promise<InventoryReport> {
+  const r = await call<any>("GetInventoryReport", {}, token);
   return mapReport(r);
 }
 
-export async function getLowStockAlerts(): Promise<InventoryReport> {
-  const r = await call<any>("GetLowStockAlerts", {});
+export async function getLowStockAlerts(token?: string): Promise<InventoryReport> {
+  const r = await call<any>("GetLowStockAlerts", {}, token);
   return mapReport(r);
 }
 
 export async function convertSVtoPT(
   product_id: string,
   quantity: number,
-  lot_number: string = ""
+  lot_number: string = "",
+  token?: string
 ): Promise<void> {
-  await call("ConvertSVtoPT", { product_id, quantity, lot_number });
+  await call("ConvertSVtoPT", { product_id, quantity, lot_number }, token);
 }
 
-export async function getProductTricapa(product_id: string): Promise<ProductTricapa> {
-  const r = await call<any>("GetProductTricapa", { product_id });
+export async function getProductTricapa(product_id: string, token?: string): Promise<ProductTricapa> {
+  const r = await call<any>("GetProductTricapa", { product_id }, token);
   return mapProductTricapa(r);
 }
 

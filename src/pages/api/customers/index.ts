@@ -1,9 +1,11 @@
 import type { APIRoute } from "astro";
 import { getCustomers, createCustomer } from "@/lib/grpc/customerClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ cookies }) => {
   try {
-    const customers = await getCustomers();
+    const token = cookies.get(COOKIE_NAME)?.value;
+    const customers = await getCustomers(token);
     return new Response(JSON.stringify(customers), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -16,8 +18,9 @@ export const GET: APIRoute = async () => {
   }
 };
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   try {
+    const token = cookies.get(COOKIE_NAME)?.value;
     const body = await request.json();
     const { social_reason, market_type, group } = body;
     if (!social_reason || !market_type || !group) {
@@ -26,7 +29,7 @@ export const POST: APIRoute = async ({ request }) => {
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
-    const customer = await createCustomer({ social_reason, market_type, group });
+    const customer = await createCustomer({ social_reason, market_type, group }, token);
     return new Response(JSON.stringify(customer), {
       status: 201,
       headers: { "Content-Type": "application/json" },

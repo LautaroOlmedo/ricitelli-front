@@ -1,13 +1,15 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getInventoryReport } from "@/lib/grpc/inventoryClient";
+import { COOKIE_NAME } from "@/lib/auth";
 import type { InventoryReport } from "@/lib/grpc/types";
 
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
 let report: InventoryReport | null = null;
 let loadError: string | null = null;
 
 try {
-  report = await getInventoryReport();
+  report = await getInventoryReport(token);
 } catch (e: any) {
   loadError = e.details ?? e.message ?? "Error al conectar con el servidor";
 }

@@ -3,7 +3,9 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import { getProductionOrderByID } from "@/lib/grpc/productionOrderClient";
 import { getProducts } from "@/lib/grpc/productClient";
 import { getDrySupplies } from "@/lib/grpc/drySupplyClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
 const { id } = Astro.params;
 let order: any = null;
 let error = "";
@@ -12,9 +14,9 @@ let drySupplyMap: Record<string, string> = {};
 
 try {
   await Promise.allSettled([
-    getProductionOrderByID(id!).then((o) => { order = o; }),
-    getProducts().then((ps) => { productMap = Object.fromEntries(ps.map((p) => [p.id, p.name])); }),
-    getDrySupplies().then((ds) => { drySupplyMap = Object.fromEntries(ds.map((d) => [d.id, `${d.code} – ${d.name}`])); }),
+    getProductionOrderByID(id!, token).then((o) => { order = o; }),
+    getProducts(token).then((ps) => { productMap = Object.fromEntries(ps.map((p) => [p.id, p.name])); }),
+    getDrySupplies(token).then((ds) => { drySupplyMap = Object.fromEntries(ds.map((d) => [d.id, `${d.code} – ${d.name}`])); }),
   ]);
   if (!order) error = "Orden no encontrada";
 } catch (e: any) {

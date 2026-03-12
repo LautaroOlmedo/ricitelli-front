@@ -1,0 +1,127 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { getSaleOrders } from "@/lib/grpc/saleOrderClient";
+import { getCustomers } from "@/lib/grpc/customerClient";
+import { COOKIE_NAME } from "@/lib/auth";
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+let orders: any[] = [];
+let customerMap: Record<string, string> = {};
+let error = "";
+
+try {
+  [orders] = await Promise.all([
+    getSaleOrders(token),
+    getCustomers(token).then((cs) => { customerMap = Object.fromEntries(cs.map((c) => [c.id, c.social_reason])); }).catch(() => {}),
+  ]);
+} catch (e: any) {
+  error = e.message;
+}
+
+const columns = [
+  { status: "NEW",        label: "Nuevo",       color: "border-t-slate-400",   badge: "bg-secondary text-secondary-foreground" },
+  { status: "CONFIRMED",  label: "Confirmado",  color: "border-t-blue-500",    badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
+  { status: "INVOICED",   label: "Facturado",   color: "border-t-yellow-500",  badge: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  { status: "DISPATCHED", label: "Despachado",  color: "border-t-green-500",   badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
+  { status: "CANCELLED",  label: "Cancelado",   color: "border-t-red-500",     badge: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+];
+
+const byStatus: Record<string, any[]> = {};
+for (const col of columns) byStatus[col.status] = [];
+for (const o of orders) {
+  const s = o.status ?? "NEW";
+  if (byStatus[s]) byStatus[s].push(o);
+  else byStatus["NEW"].push(o);
+}
+---
+
+<AppLayout title="Kanban — Pedidos">
+  <div class="px-8 py-8">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Kanban — Pedidos de Venta</h1>
+        <p class="text-sm text-muted-foreground mt-1">{orders.length} pedido{orders.length !== 1 ? "s" : ""} en total</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a
+          href="/sale-orders"
+          class="inline-flex items-center gap-2 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+        >
+          Lista
+        </a>
+        <a
+          href="/sale-orders/new"
+          class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          Nuevo Pedido
+        </a>
+      </div>
+    </div>
+
+    {error && (
+      <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive mb-6">{error}</div>
+    )}
+
+    <!-- Kanban board -->
+    <div class="flex gap-4 overflow-x-auto pb-4 items-start">
+      {columns.map((col) => {
+        const colOrders = byStatus[col.status] ?? [];
+        return (
+          <div class={`flex-shrink-0 w-72 rounded-xl border border-border bg-muted/30 border-t-4 ${col.color} flex flex-col`}>
+            <!-- Column header -->
+            <div class="px-4 py-3 border-b border-border flex items-center justify-between">
+              <span class="text-sm font-semibold">{col.label}</span>
+              <span class="inline-flex items-center justify-center rounded-full bg-background border border-border size-6 text-xs font-medium">
+                {colOrders.length}
+              </span>
+            </div>
+
+            <!-- Cards -->
+            <div class="p-3 space-y-2 min-h-[120px]">
+              {colOrders.length === 0 && (
+                <p class="text-xs text-muted-foreground text-center py-6">Sin pedidos</p>
+              )}
+              {colOrders.map((o) => (
+                <a
+                  href={`/sale-orders/${o.id}`}
+                  class="block rounded-lg border border-border bg-card p-3.5 hover:border-primary/40 hover:shadow-sm transition-all group"
+                >
+                  <div class="flex items-start justify-between gap-2 mb-2">
+                    <span class="font-mono text-[10px] text-muted-foreground leading-none">{o.id.slice(0, 8)}…</span>
+                    <span class={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${col.badge}`}>
+                      {col.label}
+                    </span>
+                  </div>
+                  <p class="text-sm font-medium leading-snug group-hover:text-primary transition-colors">
+                    {customerMap[o.customer_id] ?? o.customer_id.slice(0, 12)}
+                  </p>
+                  <div class="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                    <span>{o.items?.length ?? 0} item{(o.items?.length ?? 0) !== 1 ? "s" : ""}</span>
+                    {o.currency && (
+                      <>
+                        <span>·</span>
+                        <span class="font-mono">{o.currency}</span>
+                      </>
+                    )}
+                    {o.created_at && (
+                      <>
+                        <span>·</span>
+                        <span>{o.created_at.slice(0, 10)}</span>
+                      </>
+                    )}
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+
+  </div>
+</AppLayout>

@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
 import { getProductionOrderByID } from "@/lib/grpc/productionOrderClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
-export const GET: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params, cookies }) => {
   const { id } = params;
   if (!id) {
     return new Response(JSON.stringify({ error: "id requerido" }), {
@@ -10,7 +11,8 @@ export const GET: APIRoute = async ({ params }) => {
     });
   }
   try {
-    const order = await getProductionOrderByID(id);
+    const token = cookies.get(COOKIE_NAME)?.value;
+    const order = await getProductionOrderByID(id, token);
     return new Response(JSON.stringify(order), {
       status: 200,
       headers: { "Content-Type": "application/json" },

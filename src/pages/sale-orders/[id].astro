@@ -3,7 +3,9 @@ import AppLayout from "@/layouts/AppLayout.astro";
 import { getSaleOrderByID } from "@/lib/grpc/saleOrderClient";
 import { getProducts } from "@/lib/grpc/productClient";
 import { getCustomerByID } from "@/lib/grpc/customerClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
 const { id } = Astro.params;
 let order: any = null;
 let error = "";
@@ -12,11 +14,11 @@ let customerName = "";
 
 try {
   [order] = await Promise.all([
-    getSaleOrderByID(id!),
-    getProducts().then((ps) => { productMap = Object.fromEntries(ps.map((p) => [p.id, p.name])); }).catch(() => {}),
+    getSaleOrderByID(id!, token),
+    getProducts(token).then((ps) => { productMap = Object.fromEntries(ps.map((p) => [p.id, p.name])); }).catch(() => {}),
   ]);
   if (order?.customer_id) {
-    customerName = await getCustomerByID(order.customer_id).then((c) => c.social_reason).catch(() => "");
+    customerName = await getCustomerByID(order.customer_id, token).then((c) => c.social_reason).catch(() => "");
   }
 } catch (e: any) {
   error = e.message;

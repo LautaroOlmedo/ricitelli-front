@@ -28,23 +28,36 @@ function getClient() {
   return _client;
 }
 
-export async function getProductionOrders(): Promise<ProductionOrder[]> {
-  const client = getClient();
+function meta(token?: string): grpc.Metadata {
+  const m = new grpc.Metadata();
+  if (token) m.add("authorization", `Bearer ${token}`);
+  return m;
+}
+
+export async function getProductionOrders(token?: string): Promise<ProductionOrder[]> {
   return new Promise((resolve, reject) => {
-    client.GetProductionOrders({}, (err: any, res: any) => {
+    getClient().GetProductionOrders({}, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       resolve(res?.production_orders ?? []);
     });
   });
 }
 
-export async function getProductionOrderByID(id: string): Promise<ProductionOrder> {
-  const client = getClient();
+export async function getProductionOrderByID(id: string, token?: string): Promise<ProductionOrder> {
   return new Promise((resolve, reject) => {
-    client.GetProductionOrderByID({ id }, (err: any, res: any) => {
+    getClient().GetProductionOrderByID({ id }, meta(token), (err: any, res: any) => {
       if (err) return reject(err);
       if (!res) return reject(new Error("No response"));
       resolve(res);
+    });
+  });
+}
+
+export async function getProductionOrdersBySaleOrder(saleOrderId: string, token?: string): Promise<ProductionOrder[]> {
+  return new Promise((resolve, reject) => {
+    getClient().GetProductionOrdersBySaleOrder({ sale_order_id: saleOrderId }, meta(token), (err: any, res: any) => {
+      if (err) return reject(err);
+      resolve(res?.production_orders ?? []);
     });
   });
 }

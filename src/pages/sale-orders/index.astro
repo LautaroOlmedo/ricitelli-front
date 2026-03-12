@@ -2,14 +2,16 @@
 import AppLayout from "@/layouts/AppLayout.astro";
 import { getSaleOrders } from "@/lib/grpc/saleOrderClient";
 import { getCustomers } from "@/lib/grpc/customerClient";
+import { COOKIE_NAME } from "@/lib/auth";
 
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
 let orders: any[] = [];
 let customerMap: Record<string, string> = {};
 let error = "";
 try {
   [orders] = await Promise.all([
-    getSaleOrders(),
-    getCustomers().then((cs) => { customerMap = Object.fromEntries(cs.map((c) => [c.id, c.social_reason])); }).catch(() => {}),
+    getSaleOrders(token),
+    getCustomers(token).then((cs) => { customerMap = Object.fromEntries(cs.map((c) => [c.id, c.social_reason])); }).catch(() => {}),
   ]);
 } catch (e: any) {
   error = e.message;
@@ -34,15 +36,28 @@ const statusColor: Record<string, string> = {
           {error ? "Error al cargar" : `${orders.length} pedido${orders.length !== 1 ? "s" : ""} registrado${orders.length !== 1 ? "s" : ""}`}
         </p>
       </div>
-      <a
-        href="/sale-orders/new"
-        class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
-          <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
-        </svg>
-        Nuevo Pedido
-      </a>
+      <div class="flex items-center gap-2">
+        <a
+          href="/sale-orders/kanban"
+          class="inline-flex items-center gap-2 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <rect x="3" y="3" width="5" height="18" rx="1" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="10" y="3" width="5" height="12" rx="1" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="17" y="3" width="5" height="15" rx="1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Kanban
+        </a>
+        <a
+          href="/sale-orders/new"
+          class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+          Nuevo Pedido
+        </a>
+      </div>
     </div>
 
     {error && (
