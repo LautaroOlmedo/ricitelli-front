@@ -74,7 +74,11 @@ const statusColor: Record<string, string> = {
             {orders.map((o) => (
               <tr class="hover:bg-muted/30 transition-colors">
                 <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{o.id}</td>
-                <td class="px-4 py-3 font-mono text-xs text-muted-foreground">{o.sale_order_id}</td>
+                <td class="px-4 py-3">
+                  <a href={`/sale-orders/${o.sale_order_id}`} class="font-mono text-xs text-primary hover:underline">
+                    {o.sale_order_id.slice(0,8)}…
+                  </a>
+                </td>
                 <td class="px-4 py-3">
                   <span class:list={[
                     "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
