@@ -33,16 +33,27 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
           Stock tricapa de productos (SV / PT) y alertas de insumos secos
         </p>
       </div>
-      <button
-        id="btn-convert"
-        class="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
-          <path d="M4 4v6h6M20 20v-6h-6" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M20 10A8 8 0 004.93 14.93M4 14a8 8 0 0015.07-4.07" stroke-linecap="round"/>
-        </svg>
-        Convertir SV → PT
-      </button>
+      <div class="flex gap-2 shrink-0">
+        <button
+          id="btn-add-sv"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3.5 py-2 text-sm font-medium hover:bg-accent transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Agregar SV
+        </button>
+        <button
+          id="btn-convert"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M4 4v6h6M20 20v-6h-6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M20 10A8 8 0 004.93 14.93M4 14a8 8 0 0015.07-4.07" stroke-linecap="round"/>
+          </svg>
+          Convertir SV → PT
+        </button>
+      </div>
     </div>
 
     <!-- Error -->
@@ -75,9 +86,22 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
 
         <!-- Product Tricapa Table -->
         <div class="rounded-xl border border-border bg-card overflow-hidden mb-8">
-          <div class="px-5 py-4 border-b border-border">
-            <h2 class="text-sm font-semibold">Stock por Producto</h2>
-            <p class="text-xs text-muted-foreground mt-0.5">SV = Sin Vestir · PT = Producto Terminado (físico / comprometido / disponible)</p>
+          <div class="px-5 py-4 border-b border-border flex items-center gap-3">
+            <div class="flex-1">
+              <h2 class="text-sm font-semibold">Stock por Producto</h2>
+              <p class="text-xs text-muted-foreground mt-0.5">SV = Sin Vestir · PT = Producto Terminado (físico / comprometido / disponible)</p>
+            </div>
+            <div class="relative">
+              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/>
+              </svg>
+              <input
+                id="search-products"
+                type="search"
+                placeholder="Buscar producto…"
+                class="pl-8 pr-3 py-1.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring w-48"
+              />
+            </div>
           </div>
 
           {products.length === 0 ? (
@@ -96,7 +120,7 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
                 </thead>
                 <tbody class="divide-y divide-border">
                   {products.map((p) => (
-                    <tr class="hover:bg-muted/30 transition-colors">
+                    <tr class="product-row hover:bg-muted/30 transition-colors" data-name={p.product_name.toLowerCase()}>
                       <td class="px-5 py-4">
                         <p class="font-medium">{p.product_name}</p>
                         <p class="text-xs text-muted-foreground font-mono mt-0.5">{p.product_id.slice(0, 8)}…</p>
@@ -187,6 +211,45 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
   </div>
 </AppLayout>
 
+<!-- Add SV Modal -->
+<div id="modal-add-sv" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
+  <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+    <h2 class="text-base font-semibold mb-1">Agregar botellas Sin Vestir (SV)</h2>
+    <p class="text-xs text-muted-foreground mb-4">Ingresa botellas sin vestir al inventario de un producto.</p>
+    <div class="space-y-3">
+      <div>
+        <label for="sv-product" class="text-sm font-medium">Producto <span class="text-destructive">*</span></label>
+        <select id="sv-product" class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <option value="">— seleccionar —</option>
+          {products.map((p) => (
+            <option value={p.product_id}>{p.product_name}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label for="sv-quantity" class="text-sm font-medium">Cantidad <span class="text-destructive">*</span></label>
+        <input id="sv-quantity" type="number" min="1" value="100"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <div>
+        <label for="sv-reference" class="text-sm font-medium">Referencia</label>
+        <input id="sv-reference" type="text" placeholder="ej: ingreso cosecha 2025"
+          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <p id="sv-error" class="hidden text-xs text-destructive"></p>
+      <p id="sv-success" class="hidden text-xs text-green-600 font-medium"></p>
+    </div>
+    <div class="flex justify-end gap-2 mt-6">
+      <button id="sv-cancel" class="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
+        Cancelar
+      </button>
+      <button id="sv-confirm" class="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
+        Agregar
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Convert SV → PT Modal -->
 <div id="modal-convert" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
   <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
@@ -230,6 +293,55 @@ const totalDressedAvail = products.reduce((s, p) => s + p.dressed_available, 0);
   function showModal(el: HTMLElement) { el.classList.remove("hidden"); el.classList.add("flex"); }
   function hideModal(el: HTMLElement) { el.classList.add("hidden"); el.classList.remove("flex"); }
 
+  // --- Buscador ---
+  document.getElementById("search-products")?.addEventListener("input", (e) => {
+    const q = (e.target as HTMLInputElement).value.toLowerCase().trim();
+    document.querySelectorAll<HTMLElement>(".product-row").forEach((row) => {
+      row.style.display = !q || row.dataset.name?.includes(q) ? "" : "none";
+    });
+  });
+
+  // --- Modal Agregar SV ---
+  const modalSV = document.getElementById("modal-add-sv")!;
+  document.getElementById("btn-add-sv")!.addEventListener("click", () => showModal(modalSV));
+  document.getElementById("sv-cancel")!.addEventListener("click", () => hideModal(modalSV));
+  modalSV.addEventListener("click", (e) => { if (e.target === modalSV) hideModal(modalSV); });
+
+  const svProduct = document.getElementById("sv-product") as HTMLSelectElement;
+  const svQty = document.getElementById("sv-quantity") as HTMLInputElement;
+  const svRef = document.getElementById("sv-reference") as HTMLInputElement;
+  const svError = document.getElementById("sv-error")!;
+  const svSuccess = document.getElementById("sv-success")!;
+
+  document.getElementById("sv-confirm")!.addEventListener("click", async () => {
+    svError.classList.add("hidden");
+    svSuccess.classList.add("hidden");
+    const product_id = svProduct.value;
+    const quantity = parseInt(svQty.value, 10);
+    if (!product_id) { svError.textContent = "Seleccioná un producto."; svError.classList.remove("hidden"); return; }
+    if (!quantity || quantity < 1) { svError.textContent = "La cantidad debe ser mayor a 0."; svError.classList.remove("hidden"); return; }
+    try {
+      const res = await fetch("/api/inventory/add-undressed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id, quantity, reference: svRef.value.trim() }),
+      });
+      if (res.ok) {
+        svSuccess.textContent = "Stock SV agregado. Recargando…";
+        svSuccess.classList.remove("hidden");
+        setTimeout(() => { hideModal(modalSV); window.location.reload(); }, 1200);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        svError.textContent = body.error ?? `Error ${res.status}`;
+        svError.classList.remove("hidden");
+      }
+    } catch {
+      svError.textContent = "Error de red.";
+      svError.classList.remove("hidden");
+    }
+  });
+
+  // --- Modal Convertir SV → PT ---
   const modal = document.getElementById("modal-convert")!;
   document.getElementById("btn-convert")!.addEventListener("click", () => showModal(modal));
   document.getElementById("cv-cancel")!.addEventListener("click", () => hideModal(modal));

@@ -58,6 +58,15 @@ export async function convertSVtoPT(
   await call("ConvertSVtoPT", { product_id, quantity, lot_number }, token);
 }
 
+export async function addUndressedStock(
+  product_id: string,
+  quantity: number,
+  reference: string = "",
+  token?: string
+): Promise<void> {
+  await call("AddUndressedStock", { product_id, quantity, reference }, token);
+}
+
 export async function getProductTricapa(product_id: string, token?: string): Promise<ProductTricapa> {
   const r = await call<any>("GetProductTricapa", { product_id }, token);
   return mapProductTricapa(r);
