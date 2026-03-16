@@ -1,4 +1,5 @@
 // Tool executor — calls the gRPC clients based on tool name
+import { getToken } from "@/lib/grpc/tokenManager";
 import { getProducts, getProductByID, createProduct } from "@/lib/grpc/productClient";
 import {
   getCustomers,
@@ -27,15 +28,16 @@ import {
 } from "@/lib/grpc/inventoryClient";
 
 export async function executeTool(name: string, args: any): Promise<string> {
+  const tok = await getToken();
   switch (name) {
     // ── Productos ────────────────────────────────────────────
     case "listar_productos": {
-      const r = await getProducts();
+      const r = await getProducts(tok);
       return JSON.stringify(r);
     }
     case "obtener_producto": {
       if (!args?.id) throw new Error("se requiere el campo 'id'");
-      const r = await getProductByID(args.id);
+      const r = await getProductByID(args.id, tok);
       return JSON.stringify(r);
     }
     case "crear_producto": {
@@ -43,29 +45,29 @@ export async function executeTool(name: string, args: any): Promise<string> {
         dry_supply_id: b.dry_supply_id,
         quantity_per_unit: Number(b.quantity_per_unit),
       }));
-      await createProduct(args.name, bom);
+      await createProduct(args.name, bom, tok);
       return JSON.stringify({ ok: true, message: "Producto creado exitosamente" });
     }
 
     // ── Pedidos de Venta ─────────────────────────────────────
     case "listar_pedidos_venta": {
-      const r = await getSaleOrders();
+      const r = await getSaleOrders(tok);
       return JSON.stringify(r);
     }
     case "obtener_pedido_venta": {
       if (!args?.id) throw new Error("se requiere el campo 'id'");
-      const r = await getSaleOrderByID(args.id);
+      const r = await getSaleOrderByID(args.id, tok);
       return JSON.stringify(r);
     }
 
     // ── Órdenes de Producción ────────────────────────────────
     case "listar_ordenes_produccion": {
-      const r = await getProductionOrders();
+      const r = await getProductionOrders(tok);
       return JSON.stringify(r);
     }
     case "obtener_orden_produccion": {
       if (!args?.id) throw new Error("se requiere el campo 'id'");
-      const r = await getProductionOrderByID(args.id);
+      const r = await getProductionOrderByID(args.id, tok);
       return JSON.stringify(r);
     }
 
@@ -80,46 +82,46 @@ export async function executeTool(name: string, args: any): Promise<string> {
         market: args.market,
         destination_country: args.destination_country,
         sale_type: args.sale_type,
-      });
+      }, tok);
       return JSON.stringify(r);
     }
 
     // ── Insumos Secos ────────────────────────────────────────
     case "listar_insumos": {
-      const r = await getDrySupplies();
+      const r = await getDrySupplies(tok);
       return JSON.stringify(r);
     }
     case "obtener_tricapa_insumo": {
       if (!args?.id) throw new Error("se requiere el campo 'id'");
-      const r = await getStockTricapa(args.id);
+      const r = await getStockTricapa(args.id, tok);
       return JSON.stringify(r);
     }
     case "agregar_stock_insumo": {
       if (!args?.id) throw new Error("se requiere el campo 'id'");
       if (!args?.quantity || args.quantity < 1) throw new Error("quantity debe ser >= 1");
-      await addStock(args.id, Number(args.quantity), args.reference ?? "agente-ia");
+      await addStock(args.id, Number(args.quantity), args.reference ?? "agente-ia", tok);
       return JSON.stringify({ ok: true, message: `Stock agregado: ${args.quantity} unidades` });
     }
 
     // ── Inventario ───────────────────────────────────────────
     case "reporte_inventario": {
-      const r = await getInventoryReport();
+      const r = await getInventoryReport(tok);
       return JSON.stringify(r);
     }
     case "alertas_stock_bajo": {
-      const r = await getLowStockAlerts();
+      const r = await getLowStockAlerts(tok);
       return JSON.stringify(r.dry_supply_alerts ?? []);
     }
     case "obtener_tricapa_producto": {
       if (!args?.product_id) throw new Error("se requiere el campo 'product_id'");
-      const r = await getProductTricapa(args.product_id);
+      const r = await getProductTricapa(args.product_id, tok);
       return JSON.stringify(r);
     }
     case "convertir_sv_a_pt": {
       if (!args?.product_id) throw new Error("se requiere 'product_id'");
       if (!args?.quantity || args.quantity < 1) throw new Error("quantity debe ser >= 1");
       if (!args?.lot_number) throw new Error("se requiere 'lot_number'");
-      await convertSVtoPT(args.product_id, Number(args.quantity), args.lot_number);
+      await convertSVtoPT(args.product_id, Number(args.quantity), args.lot_number, tok);
       return JSON.stringify({
         ok: true,
         message: `Conversión SV→PT exitosa: ${args.quantity} unidades, lote ${args.lot_number}`,
@@ -128,12 +130,12 @@ export async function executeTool(name: string, args: any): Promise<string> {
 
     // ── Clientes ─────────────────────────────────────────────
     case "listar_clientes": {
-      const r = await getCustomers();
+      const r = await getCustomers(tok);
       return JSON.stringify(r);
     }
     case "obtener_cliente": {
       if (!args?.id) throw new Error("se requiere el campo 'id'");
-      const r = await getCustomerByID(args.id);
+      const r = await getCustomerByID(args.id, tok);
       return JSON.stringify(r);
     }
     case "crear_cliente": {
@@ -143,17 +145,17 @@ export async function executeTool(name: string, args: any): Promise<string> {
         social_reason: args.social_reason,
         market_type: args.market_type,
         group: args.group,
-      });
+      }, tok);
       return JSON.stringify(r);
     }
     case "desactivar_cliente": {
       if (!args?.id) throw new Error("se requiere el campo 'id'");
-      const r = await deactivateCustomer(args.id);
+      const r = await deactivateCustomer(args.id, tok);
       return JSON.stringify(r);
     }
     case "pedidos_por_cliente": {
       if (!args?.customer_id) throw new Error("se requiere el campo 'customer_id'");
-      const r = await getOrdersByCustomer(args.customer_id);
+      const r = await getOrdersByCustomer(args.customer_id, tok);
       return JSON.stringify(r);
     }
     case "hacer_pedido_cliente": {
@@ -165,17 +167,17 @@ export async function executeTool(name: string, args: any): Promise<string> {
         currency: args.currency,
         destination_country: args.destination_country,
         sale_type: args.sale_type,
-      });
+      }, tok);
       return JSON.stringify(r);
     }
 
     // ── Resumen ──────────────────────────────────────────────
     case "resumen_sistema": {
       const [products, sales, production, alerts] = await Promise.all([
-        getProducts(),
-        getSaleOrders(),
-        getProductionOrders(),
-        getLowStockAlerts(),
+        getProducts(tok),
+        getSaleOrders(tok),
+        getProductionOrders(tok),
+        getLowStockAlerts(tok),
       ]);
       return JSON.stringify({
         total_productos: products.length,
