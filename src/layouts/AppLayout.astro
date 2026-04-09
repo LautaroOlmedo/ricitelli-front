@@ -45,6 +45,11 @@ const nav = [
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path d="M3 3h18v4H3z" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 9h18v12H3z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6M9 17h4" stroke-linecap="round"/></svg>`,
   },
   {
+    href: "/maps",
+    label: "Mapas",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  },
+  {
     href: "/chat",
     label: "Asistente IA",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 12h8M12 8v8" stroke-linecap="round"/></svg>`,
@@ -59,23 +64,26 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title} — Bodega</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
   </head>
   <body class="min-h-screen bg-background text-foreground antialiased">
     <div class="flex min-h-screen">
 
       <!-- ── Sidebar ────────────────────────────────────── -->
-      <aside class="w-[220px] shrink-0 border-r border-border bg-card flex flex-col">
+      <aside class="w-55 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col">
 
         <!-- Logo -->
-        <a href="/" class="flex items-center gap-3 px-5 py-5 border-b border-border hover:bg-muted/40 transition-colors">
-          <div class="size-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 text-primary-foreground">
+        <a href="/" class="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border hover:bg-sidebar-accent/40 transition-colors">
+          <div class="size-8 rounded-md bg-sidebar-primary flex items-center justify-center shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 text-sidebar-primary-foreground">
               <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
           <div>
-            <p class="text-sm font-semibold leading-none">Bodega</p>
-            <p class="text-[10px] text-muted-foreground mt-0.5">Gestión</p>
+            <p class="text-sm font-semibold leading-none font-display tracking-wide">Bodega</p>
+            <p class="text-[10px] text-sidebar-foreground/50 mt-0.5">Gestión</p>
           </div>
         </a>
 
@@ -87,10 +95,10 @@ const nav = [
               <a
                 href={link.href}
                 class:list={[
-                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+                  "flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] transition-colors",
                   active
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                    : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
                 ]}
               >
                 <Fragment set:html={link.icon} />
@@ -101,11 +109,11 @@ const nav = [
         </nav>
 
         <!-- Footer -->
-        <div class="px-4 py-4 border-t border-border space-y-2">
+        <div class="px-4 py-4 border-t border-sidebar-border space-y-2">
           <form method="POST" action="/api/auth/logout">
             <button
               type="submit"
-              class="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground transition-colors"
+              class="w-full flex items-center gap-2 px-3 py-2 rounded-md text-[13px] text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground transition-colors"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4 shrink-0">
                 <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -115,7 +123,7 @@ const nav = [
               Cerrar sesión
             </button>
           </form>
-          <p class="text-[11px] text-muted-foreground px-3">v0.1.0 · SSR + gRPC</p>
+          <p class="text-[11px] text-sidebar-foreground/40 px-3">v0.1.0 · SSR + gRPC</p>
         </div>
       </aside>
 

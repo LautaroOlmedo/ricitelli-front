@@ -11,92 +11,71 @@ let loadError: string | null = null;
 
 try {
   supplies = await getDrySupplies(token);
-  // Fetch tricapa for each supply in parallel (best-effort)
   const triCapaResults = await Promise.allSettled(
     supplies.map(async (s) => {
-      const res = await fetch(
-        `${Astro.url.origin}/api/dry-supplies/${s.id}?tricapa=true`
-      );
+      const res = await fetch(`${Astro.url.origin}/api/dry-supplies/${s.id}?tricapa=true`);
       if (!res.ok) return null;
       return res.json() as Promise<StockTricapa>;
     })
   );
   triCapaResults.forEach((r, i) => {
-    if (r.status === "fulfilled" && r.value) {
-      triCapaMap[supplies[i].id] = r.value;
-    }
+    if (r.status === "fulfilled" && r.value) triCapaMap[supplies[i].id] = r.value;
   });
 } catch (e: any) {
   loadError = e.details ?? e.message ?? "Error al conectar con el servidor";
 }
 
-const categoryLabel: Record<string, string> = {
-  LABEL: "Etiqueta",
-  CONTRAETIQUETA: "Contraetiqueta",
-  BOX: "Caja",
-  CORK: "Corcho",
-  CAPSULE: "Cápsula",
-  BOTTLE: "Botella",
-  OTHER: "Otro",
+const categoryMeta: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  LABEL:          { label: "Etiqueta",       color: "#3B82F6", bg: "rgba(59,130,246,0.1)",  icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" },
+  CONTRAETIQUETA: { label: "Contraetiqueta", color: "#A855F7", bg: "rgba(168,85,247,0.1)",  icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+  BOX:            { label: "Caja",            color: "#B8860B", bg: "rgba(184,134,11,0.1)",  icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
+  CORK:           { label: "Corcho",          color: "#556B2F", bg: "rgba(85,107,47,0.1)",   icon: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" },
+  CAPSULE:        { label: "Cápsula",         color: "#EF4444", bg: "rgba(239,68,68,0.1)",   icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+  BOTTLE:         { label: "Botella",         color: "#4E0707", bg: "rgba(78,7,7,0.1)",      icon: "M9 3v11.5a3.5 3.5 0 007 0V3M9 3h7M9 3H7M16 3h2" },
+  OTHER:          { label: "Otro",            color: "#8B7355", bg: "rgba(139,115,85,0.1)",  icon: "M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" },
 };
 
-const categoryColor: Record<string, string> = {
-  LABEL:         "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  CONTRAETIQUETA:"bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300",
-  BOX:           "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  CORK:          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  CAPSULE:       "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300",
-  BOTTLE:        "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
-  OTHER:         "bg-muted text-muted-foreground",
-};
+const allCategories = ["ALL", ...Object.keys(categoryMeta)];
 
-const totalPhysical = Object.values(triCapaMap).reduce((s, t) => s + t.physical_stock, 0);
-const totalCommitted = Object.values(triCapaMap).reduce((s, t) => s + t.committed_stock, 0);
-const totalAvailable = Object.values(triCapaMap).reduce((s, t) => s + t.available_stock, 0);
-const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock < 500).length;
+const totalPhysical   = Object.values(triCapaMap).reduce((s, t) => s + t.physical_stock,   0);
+const totalCommitted  = Object.values(triCapaMap).reduce((s, t) => s + t.committed_stock,  0);
+const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stock < 500).length;
 ---
 
 <AppLayout title="Insumos Secos">
-  <div class="px-8 py-8 max-w-6xl mx-auto">
+  <div class="px-8 py-8 max-w-7xl mx-auto">
 
-    <!-- Header -->
+    <!-- ── Header ───────────────────────────────────────── -->
     <div class="flex items-start justify-between mb-8">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Insumos Secos</h1>
-        <p class="text-sm text-muted-foreground mt-1">
-          Inventario tricapa: físico · comprometido · disponible
-        </p>
+        <h1 class="text-2xl font-bold tracking-tight font-display">Insumos Secos</h1>
+        <p class="text-sm text-muted-foreground mt-1">Catálogo · inventario tricapa por insumo</p>
       </div>
-      <button
-        id="btn-new-supply"
-        class="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3.5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
-      >
+      <button id="btn-new-supply"
+        class="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3.5 py-2 text-sm font-medium hover:bg-primary/90 transition-colors shrink-0">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
           <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
         </svg>
-        Agregar Insumo
+        Nuevo Insumo
       </button>
     </div>
 
-    <!-- Stats -->
+    <!-- ── Stats ────────────────────────────────────────── -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-      {[
-        { label: "Insumos totales",   value: String(supplies.length),              sub: "en catálogo",       color: "" },
-        { label: "Stock físico",      value: totalPhysical.toLocaleString("es-AR"), sub: "unidades totales",  color: "" },
-        { label: "Comprometido",      value: totalCommitted.toLocaleString("es-AR"), sub: "en producción",    color: "text-amber-600" },
-        { label: "Stock bajo",        value: String(lowStockCount),                 sub: "< 500 disponibles", color: lowStockCount > 0 ? "text-destructive" : "text-green-600" },
-      ].map(({ label, value, sub, color }) => (
+      {([
+        { label: "Insumos",      value: String(supplies.length),                sub: "en catálogo",       color: "#4E0707" },
+        { label: "Stock físico", value: totalPhysical.toLocaleString("es-AR"),  sub: "unidades totales",  color: "#556B2F" },
+        { label: "Comprometido", value: totalCommitted.toLocaleString("es-AR"), sub: "en producción",     color: "#B8860B" },
+        { label: "Stock bajo",   value: String(lowStockCount),                  sub: "< 500 disponibles", color: lowStockCount > 0 ? "#EF4444" : "#22C55E" },
+      ] as const).map(({ label, value, sub, color }) => (
         <div class="rounded-xl border border-border bg-card p-5">
-          <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-          <p class:list={["mt-2 text-3xl font-bold tracking-tight", color || ""]}>
-            {value}
-          </p>
-          <p class="text-xs text-muted-foreground mt-1">{sub}</p>
+          <p class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+          <p class="mt-1.5 text-2xl font-bold tracking-tight font-display" style={`color:${color};`}>{value}</p>
+          <p class="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
         </div>
       ))}
     </div>
 
-    <!-- Error state -->
     {loadError && (
       <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
         <h3 class="font-semibold text-sm text-destructive">No se pudo conectar con el servidor gRPC</h3>
@@ -104,7 +83,6 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
       </div>
     )}
 
-    <!-- Table -->
     {!loadError && supplies.length === 0 && (
       <div class="rounded-xl border border-border bg-card p-14 text-center">
         <p class="text-sm text-muted-foreground">No hay insumos registrados aún.</p>
@@ -112,144 +90,136 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
     )}
 
     {!loadError && supplies.length > 0 && (
-      <div class="rounded-xl border border-border bg-card overflow-hidden">
-
-        <!-- Toolbar -->
-        <div class="flex items-center gap-3 px-5 py-3.5 border-b border-border">
-          <div class="relative flex-1 max-w-xs">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35" stroke-linecap="round"/>
+      <>
+        <!-- ── Toolbar ───────────────────────────────────── -->
+        <div class="flex flex-wrap items-center gap-3 mb-6">
+          <!-- Search -->
+          <div class="relative">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/>
             </svg>
-            <input
-              id="search-input"
-              type="text"
-              placeholder="Buscar por nombre o código…"
-              class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+            <input id="search-input" type="text" placeholder="Buscar insumo…"
+              class="pl-8 pr-3 py-1.5 rounded-md border border-input bg-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring w-52"/>
           </div>
-          <span id="row-count" class="text-xs text-muted-foreground ml-auto shrink-0">
+          <!-- Category filters -->
+          <div class="flex flex-wrap gap-1.5">
+            {allCategories.map((cat) => {
+              const meta = cat === "ALL" ? null : categoryMeta[cat];
+              return (
+                <button
+                  class="cat-filter rounded-full px-3 py-1 text-[11px] font-semibold border transition-colors"
+                  data-cat={cat}
+                  style={cat === "ALL"
+                    ? "background:#4E0707; color:#F5F0EB; border-color:#4E0707;"
+                    : `background:transparent; color:${meta?.color}; border-color:${meta?.color}40;`}>
+                  {cat === "ALL" ? "Todos" : meta?.label}
+                </button>
+              );
+            })}
+          </div>
+          <span id="row-count" class="ml-auto text-xs text-muted-foreground shrink-0">
             {supplies.length} {supplies.length === 1 ? "insumo" : "insumos"}
           </span>
         </div>
 
-        <!-- Table -->
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-muted/30 border-b border-border">
-              <tr>
-                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Código / Nombre</th>
-                <th class="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoría</th>
-                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Físico</th>
-                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Comprometido</th>
-                <th class="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">Disponible</th>
-                <th class="px-5 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">Estado</th>
-                <th class="px-5 py-3 w-24"></th>
-              </tr>
-            </thead>
-            <tbody id="supply-tbody" class="divide-y divide-border">
-              {supplies.map((s) => {
-                const tri = triCapaMap[s.id];
-                const isLow = tri && tri.available_stock < 500;
-                return (
-                  <tr
-                    class="supply-row group hover:bg-muted/30 transition-colors"
-                    data-id={s.id}
-                    data-search={`${s.code} ${s.name}`.toLowerCase()}
-                  >
-                    <!-- Code + Name -->
-                    <td class="px-5 py-4">
-                      <span class="font-mono text-xs text-muted-foreground">{s.code}</span>
-                      <p class="font-medium text-sm mt-0.5">
-                        <a href={`/dry-supplies/supply-detail?id=${s.id}`} class="hover:text-primary hover:underline transition-colors">
-                          {s.name}
-                        </a>
-                      </p>
-                    </td>
+        <!-- ── Gallery grid ──────────────────────────────── -->
+        <div id="supply-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {supplies.map((s) => {
+            const tri  = triCapaMap[s.id];
+            const meta = categoryMeta[s.category] ?? categoryMeta.OTHER;
+            const isLow = tri && tri.available_stock < 500;
+            const availPct = tri && tri.physical_stock > 0
+              ? Math.min(Math.round((tri.available_stock / tri.physical_stock) * 100), 100)
+              : 0;
+            return (
+              <div
+                class="supply-card group rounded-xl bg-card border border-border overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer"
+                data-id={s.id}
+                data-cat={s.category}
+                data-search={`${s.code} ${s.name}`.toLowerCase()}>
 
-                    <!-- Category -->
-                    <td class="px-5 py-4">
-                      <span class:list={[
-                        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-                        categoryColor[s.category] ?? categoryColor.OTHER,
-                      ]}>
-                        {categoryLabel[s.category] ?? s.category}
-                      </span>
-                    </td>
+                <!-- Icon hero -->
+                <div class="relative flex items-center justify-center py-8"
+                  style={`background: ${meta.bg};`}>
+                  <div class="size-16 rounded-xl flex items-center justify-center"
+                    style={`background: ${meta.color}20; border: 2px solid ${meta.color}30;`}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-8"
+                      style={`color: ${meta.color};`}>
+                      <path d={meta.icon} stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </div>
+                  <!-- category badge -->
+                  <span class="absolute top-2.5 left-2.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                    style={`background:${meta.color}20; color:${meta.color};`}>
+                    {meta.label}
+                  </span>
+                  <!-- low stock warning -->
+                  {isLow && (
+                    <span class="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive animate-pulse"/>
+                  )}
+                </div>
 
-                    <!-- Physical -->
-                    <td class="px-5 py-4 text-right font-mono text-sm">
-                      {tri ? tri.physical_stock.toLocaleString("es-AR") : "—"}
-                    </td>
+                <!-- Body -->
+                <div class="px-3.5 pt-3 pb-3 flex-1 flex flex-col gap-2">
+                  <div>
+                    <p class="font-mono text-[10px] text-muted-foreground">{s.code}</p>
+                    <p class="font-semibold text-[13px] leading-snug mt-0.5 line-clamp-2">{s.name}</p>
+                  </div>
 
-                    <!-- Committed -->
-                    <td class="px-5 py-4 text-right font-mono text-sm text-amber-600">
-                      {tri ? tri.committed_stock.toLocaleString("es-AR") : "—"}
-                    </td>
-
-                    <!-- Available -->
-                    <td class:list={[
-                      "px-5 py-4 text-right font-mono text-sm font-semibold",
-                      isLow ? "text-destructive" : "text-green-600",
-                    ]}>
-                      {tri ? tri.available_stock.toLocaleString("es-AR") : "—"}
-                    </td>
-
-                    <!-- Status -->
-                    <td class="px-5 py-4 text-center">
-                      {!tri && (
-                        <span class="text-xs text-muted-foreground">—</span>
-                      )}
-                      {tri && (
-                        <span class:list={[
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                          isLow
-                            ? "bg-destructive/10 text-destructive"
-                            : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-                        ]}>
-                          {isLow ? "Bajo" : "OK"}
-                        </span>
-                      )}
-                    </td>
-
-                    <!-- Actions -->
-                    <td class="px-5 py-4 text-right">
-                      <div class="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a
-                          href={`/dry-supplies/supply-detail?id=${s.id}`}
-                          class="inline-flex items-center rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                        >
-                          Ver
-                        </a>
-                        <a
-                          href={`/dry-supplies/edit?id=${s.id}`}
-                          class="inline-flex items-center rounded-md border border-input bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                        >
-                          Editar
-                        </a>
+                  {tri ? (
+                    <div class="space-y-1.5 text-[11px] mt-auto">
+                      <div class="flex justify-between text-muted-foreground">
+                        <span>Físico</span>
+                        <span class="font-mono font-medium text-foreground">{tri.physical_stock.toLocaleString("es-AR")}</span>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <div class="flex justify-between text-muted-foreground">
+                        <span>Disponible</span>
+                        <span class="font-mono font-bold" style={`color:${isLow ? "#EF4444" : "#22C55E"};`}>
+                          {tri.available_stock.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                      <div class="h-1 rounded-full overflow-hidden" style="background:rgba(0,0,0,0.08);">
+                        <div class="h-full rounded-full transition-all"
+                          style={`width:${availPct}%; background:${isLow ? "#EF4444" : meta.color};`}/>
+                      </div>
+                    </div>
+                  ) : (
+                    <p class="text-[11px] text-muted-foreground mt-auto">Sin datos de stock</p>
+                  )}
+                </div>
+
+                <!-- Footer actions (visible on hover) -->
+                <div class="px-3.5 pb-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <a href={`/dry-supplies/supply-detail?id=${s.id}`}
+                    class="flex-1 text-center text-[11px] font-medium py-1.5 rounded-md border border-border hover:bg-muted/60 transition-colors"
+                    onclick="event.stopPropagation()">
+                    Ver
+                  </a>
+                  <a href={`/dry-supplies/edit?id=${s.id}`}
+                    class="flex-1 text-center text-[11px] font-medium py-1.5 rounded-md border border-border hover:bg-muted/60 transition-colors"
+                    onclick="event.stopPropagation()">
+                    Editar
+                  </a>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <!-- Footer -->
-        <div class="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
+        <div class="mt-6 flex justify-between items-center">
           <p id="footer-count" class="text-xs text-muted-foreground">
             {supplies.length} {supplies.length === 1 ? "insumo" : "insumos"}
           </p>
           <p class="text-xs text-muted-foreground">gRPC · localhost:50051</p>
         </div>
-      </div>
+      </>
     )}
-
   </div>
 </AppLayout>
 
-<!-- New Dry Supply Modal -->
+<!-- ── Modal Nuevo Insumo ─────────────────────────────────── -->
 <div id="modal-new-supply" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
   <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
     <h2 class="text-base font-semibold mb-1">Nuevo Insumo Seco</h2>
@@ -259,12 +229,11 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
         <div>
           <label for="ns-code" class="text-sm font-medium">Código (SKU) <span class="text-destructive">*</span></label>
           <input id="ns-code" type="text" placeholder="ej: HEYM-CTR-JP"
-            class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
+            class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
         </div>
         <div>
           <label for="ns-unit" class="text-sm font-medium">Unidad</label>
-          <select id="ns-unit"
-            class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+          <select id="ns-unit" class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="UNIT">Unidad</option>
             <option value="BOX">Caja</option>
             <option value="KG">Kg</option>
@@ -274,12 +243,11 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
       <div>
         <label for="ns-name" class="text-sm font-medium">Nombre <span class="text-destructive">*</span></label>
         <input id="ns-name" type="text" placeholder="ej: Contraetiqueta Japón Hey Malbec"
-          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
+          class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
       </div>
       <div>
         <label for="ns-category" class="text-sm font-medium">Categoría</label>
-        <select id="ns-category"
-          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+        <select id="ns-category" class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="LABEL">Etiqueta</option>
           <option value="CONTRAETIQUETA">Contraetiqueta</option>
           <option value="BOX">Caja</option>
@@ -292,17 +260,13 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
       <p id="ns-error" class="hidden text-xs text-destructive"></p>
     </div>
     <div class="flex justify-end gap-2 mt-6">
-      <button id="ns-cancel" class="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
-        Cancelar
-      </button>
-      <button id="ns-confirm" class="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
-        Crear insumo
-      </button>
+      <button id="ns-cancel" class="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-muted/60 transition-colors">Cancelar</button>
+      <button id="ns-confirm" class="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">Crear insumo</button>
     </div>
   </div>
 </div>
 
-<!-- Add Stock Modal -->
+<!-- ── Modal Agregar Stock ────────────────────────────────── -->
 <div id="modal-add-stock" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
   <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
     <h2 class="text-base font-semibold mb-4">Agregar Stock</h2>
@@ -314,123 +278,79 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
       <div>
         <label for="modal-quantity" class="text-sm font-medium">Cantidad <span class="text-destructive">*</span></label>
         <input id="modal-quantity" type="number" min="1" value="100"
-          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+          class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
       </div>
       <div>
         <label for="modal-reference" class="text-sm font-medium">Referencia</label>
         <input id="modal-reference" type="text" placeholder="ej: OC-2024-001"
-          class="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+          class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
       </div>
       <p id="modal-error" class="hidden text-xs text-destructive"></p>
     </div>
     <div class="flex justify-end gap-2 mt-6">
-      <button id="modal-cancel" class="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
-        Cancelar
-      </button>
-      <button id="modal-confirm" class="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
-        Agregar
-      </button>
+      <button id="modal-cancel" class="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-muted/60 transition-colors">Cancelar</button>
+      <button id="modal-confirm" class="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">Agregar</button>
     </div>
   </div>
 </div>
 
 <script>
-  function showModal(el: HTMLElement) {
-    el.classList.remove("hidden");
-    el.classList.add("flex");
-  }
-  function hideModal(el: HTMLElement) {
-    el.classList.add("hidden");
-    el.classList.remove("flex");
-  }
+  function showModal(el: HTMLElement) { el.classList.remove("hidden"); el.classList.add("flex"); }
+  function hideModal(el: HTMLElement) { el.classList.add("hidden"); el.classList.remove("flex"); }
 
-  // ── Search filter ─────────────────────────────────────────
-  const searchInput = document.getElementById("search-input") as HTMLInputElement | null;
-  const tbody = document.getElementById("supply-tbody");
-  const badge = document.getElementById("row-count");
-  const footer = document.getElementById("footer-count");
+  // ── Search + category filter ─────────────────────────────
+  const searchInput = document.getElementById("search-input") as HTMLInputElement;
+  const grid        = document.getElementById("supply-grid")!;
+  const badge       = document.getElementById("row-count")!;
+  const footer      = document.getElementById("footer-count")!;
+  let activeCat = "ALL";
 
-  if (searchInput && tbody) {
-    searchInput.addEventListener("input", () => {
-      const q = searchInput.value.trim().toLowerCase();
-      const rows = tbody.querySelectorAll<HTMLElement>(".supply-row");
-      let visible = 0;
-      rows.forEach((row) => {
-        const match = !q || (row.dataset.search ?? "").includes(q);
-        row.style.display = match ? "" : "none";
-        if (match) visible++;
-      });
-      const label = visible === 1 ? "insumo" : "insumos";
-      if (badge) badge.textContent = `${visible} ${label}`;
-      if (footer) footer.textContent = `${visible} ${label}`;
+  function applyFilters() {
+    const q = searchInput?.value.trim().toLowerCase() ?? "";
+    const cards = grid.querySelectorAll<HTMLElement>(".supply-card");
+    let visible = 0;
+    cards.forEach((card) => {
+      const matchSearch = !q || (card.dataset.search ?? "").includes(q);
+      const matchCat = activeCat === "ALL" || card.dataset.cat === activeCat;
+      card.style.display = matchSearch && matchCat ? "" : "none";
+      if (matchSearch && matchCat) visible++;
     });
+    const label = visible === 1 ? "insumo" : "insumos";
+    badge.textContent = `${visible} ${label}`;
+    footer.textContent = `${visible} ${label}`;
   }
 
-  // ── New Dry Supply modal ──────────────────────────────────
-  const nsModal = document.getElementById("modal-new-supply")!;
-  const nsCode = document.getElementById("ns-code") as HTMLInputElement;
-  const nsName = document.getElementById("ns-name") as HTMLInputElement;
-  const nsCategory = document.getElementById("ns-category") as HTMLSelectElement;
-  const nsUnit = document.getElementById("ns-unit") as HTMLSelectElement;
-  const nsError = document.getElementById("ns-error")!;
+  searchInput?.addEventListener("input", applyFilters);
 
-  document.getElementById("btn-new-supply")!.addEventListener("click", () => {
-    nsCode.value = "";
-    nsName.value = "";
-    nsError.classList.add("hidden");
-    showModal(nsModal);
-  });
-  document.getElementById("ns-cancel")!.addEventListener("click", () => hideModal(nsModal));
-  nsModal.addEventListener("click", (e) => { if (e.target === nsModal) hideModal(nsModal); });
-
-  document.getElementById("ns-confirm")!.addEventListener("click", async () => {
-    nsError.classList.add("hidden");
-    const code = nsCode.value.trim();
-    const name = nsName.value.trim();
-    if (!code || !name) {
-      nsError.textContent = "El código y el nombre son obligatorios.";
-      nsError.classList.remove("hidden");
-      return;
-    }
-    try {
-      const res = await fetch("/api/dry-supplies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, name, category: nsCategory.value, unit: nsUnit.value }),
+  document.querySelectorAll<HTMLElement>(".cat-filter").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeCat = btn.dataset.cat ?? "ALL";
+      document.querySelectorAll<HTMLElement>(".cat-filter").forEach((b) => {
+        const isActive = b.dataset.cat === activeCat;
+        b.style.background = isActive ? "#4E0707" : "transparent";
+        b.style.color = isActive ? "#F5F0EB" : (b.dataset.cat === "ALL" ? "#8B7355" : "");
+        b.style.borderColor = isActive ? "#4E0707" : "";
       });
-      if (res.ok) {
-        hideModal(nsModal);
-        window.location.reload();
-      } else {
-        const body = await res.json().catch(() => ({}));
-        nsError.textContent = body.error ?? `Error ${res.status}`;
-        nsError.classList.remove("hidden");
-      }
-    } catch {
-      nsError.textContent = "Error de red.";
-      nsError.classList.remove("hidden");
-    }
+      applyFilters();
+    });
   });
 
-  // ── Add Stock modal — supply rows click ───────────────────
+  // ── Add stock (click card) ───────────────────────────────
   let currentSupplyId = "";
-  const stockModal = document.getElementById("modal-add-stock")!;
-  const modalName = document.getElementById("modal-supply-name")!;
-  const modalQty = document.getElementById("modal-quantity") as HTMLInputElement;
-  const modalRef = document.getElementById("modal-reference") as HTMLInputElement;
-  const modalError = document.getElementById("modal-error")!;
+  const stockModal  = document.getElementById("modal-add-stock")!;
+  const modalName   = document.getElementById("modal-supply-name")!;
+  const modalQty    = document.getElementById("modal-quantity") as HTMLInputElement;
+  const modalRef    = document.getElementById("modal-reference") as HTMLInputElement;
+  const modalError  = document.getElementById("modal-error")!;
 
-  // Store supply IDs on row dataset via server-rendered data attribute
-  document.querySelectorAll<HTMLElement>(".supply-row").forEach((row) => {
-    row.style.cursor = "pointer";
-    row.addEventListener("click", () => {
-      currentSupplyId = row.dataset.id ?? "";
-      const code = row.querySelector<HTMLElement>(".font-mono")?.textContent?.trim() ?? "";
-      const name = row.querySelector<HTMLElement>(".font-medium")?.textContent?.trim() ?? "";
+  grid.querySelectorAll<HTMLElement>(".supply-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      currentSupplyId = card.dataset.id ?? "";
+      const code = card.querySelector<HTMLElement>(".font-mono")?.textContent?.trim() ?? "";
+      const name = card.querySelectorAll<HTMLElement>(".font-semibold")[0]?.textContent?.trim() ?? "";
       modalName.textContent = `${code} — ${name}`;
       modalError.classList.add("hidden");
-      modalQty.value = "100";
-      modalRef.value = "";
+      modalQty.value = "100"; modalRef.value = "";
       showModal(stockModal);
     });
   });
@@ -441,28 +361,48 @@ const lowStockCount = Object.values(triCapaMap).filter((t) => t.available_stock 
   document.getElementById("modal-confirm")!.addEventListener("click", async () => {
     if (!currentSupplyId) return;
     const qty = parseInt(modalQty.value, 10);
-    if (!qty || qty < 1) {
-      modalError.textContent = "La cantidad debe ser mayor a 0.";
-      modalError.classList.remove("hidden");
-      return;
-    }
+    if (!qty || qty < 1) { modalError.textContent = "Cantidad debe ser > 0."; modalError.classList.remove("hidden"); return; }
     try {
       const res = await fetch(`/api/dry-supplies/${currentSupplyId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quantity: qty, reference: modalRef.value.trim() || "manual" }),
       });
-      if (res.ok) {
-        hideModal(stockModal);
-        window.location.reload();
-      } else {
+      if (res.ok) { hideModal(stockModal); window.location.reload(); }
+      else {
         const body = await res.json().catch(() => ({}));
-        modalError.textContent = body.error ?? `Error ${res.status}`;
-        modalError.classList.remove("hidden");
+        modalError.textContent = body.error ?? `Error ${res.status}`; modalError.classList.remove("hidden");
       }
-    } catch {
-      modalError.textContent = "Error de red.";
-      modalError.classList.remove("hidden");
-    }
+    } catch { modalError.textContent = "Error de red."; modalError.classList.remove("hidden"); }
+  });
+
+  // ── New supply modal ─────────────────────────────────────
+  const nsModal   = document.getElementById("modal-new-supply")!;
+  const nsCode    = document.getElementById("ns-code") as HTMLInputElement;
+  const nsName    = document.getElementById("ns-name") as HTMLInputElement;
+  const nsCategory = document.getElementById("ns-category") as HTMLSelectElement;
+  const nsUnit    = document.getElementById("ns-unit") as HTMLSelectElement;
+  const nsError   = document.getElementById("ns-error")!;
+
+  document.getElementById("btn-new-supply")!.addEventListener("click", () => {
+    nsCode.value = ""; nsName.value = ""; nsError.classList.add("hidden"); showModal(nsModal);
+  });
+  document.getElementById("ns-cancel")!.addEventListener("click", () => hideModal(nsModal));
+  nsModal.addEventListener("click", (e) => { if (e.target === nsModal) hideModal(nsModal); });
+
+  document.getElementById("ns-confirm")!.addEventListener("click", async () => {
+    nsError.classList.add("hidden");
+    const code = nsCode.value.trim(); const name = nsName.value.trim();
+    if (!code || !name) { nsError.textContent = "Código y nombre son obligatorios."; nsError.classList.remove("hidden"); return; }
+    try {
+      const res = await fetch("/api/dry-supplies", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, name, category: nsCategory.value, unit: nsUnit.value }),
+      });
+      if (res.ok) { hideModal(nsModal); window.location.reload(); }
+      else {
+        const body = await res.json().catch(() => ({}));
+        nsError.textContent = body.error ?? `Error ${res.status}`; nsError.classList.remove("hidden");
+      }
+    } catch { nsError.textContent = "Error de red."; nsError.classList.remove("hidden"); }
   });
 </script>

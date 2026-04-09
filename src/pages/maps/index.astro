@@ -1,0 +1,517 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+
+// ── Static plot configuration ─────────────────────────────────
+// Coordinates: Alto Valle del Río Negro, Patagonia (Riccitelli zone)
+// Each plot has a polygon (lat/lng pairs) + indicator data per metric
+const plots = [
+  {
+    id: "P-01",
+    name: "Parcela Noreste",
+    variety: "Malbec",
+    ha: 4.2,
+    age: 22,
+    status: "healthy",
+    polygon: [[-38.9310,-68.0480],[-38.9295,-68.0440],[-38.9320,-68.0430],[-38.9335,-68.0470]],
+    indicators: {
+      ndvi:        { value: 0.72, label: "0.72", level: "optimal" },
+      moisture:    { value: 68,   label: "68%",  level: "optimal" },
+      temperature: { value: 19.4, label: "19.4°C", level: "normal" },
+      maturity:    { value: 82,   label: "82%",  level: "advanced" },
+    },
+  },
+  {
+    id: "P-02",
+    name: "Parcela Sur",
+    variety: "Malbec",
+    ha: 3.8,
+    age: 18,
+    status: "healthy",
+    polygon: [[-38.9345,-68.0475],[-38.9330,-68.0435],[-38.9355,-68.0425],[-38.9370,-68.0465]],
+    indicators: {
+      ndvi:        { value: 0.65, label: "0.65", level: "normal" },
+      moisture:    { value: 52,   label: "52%",  level: "low" },
+      temperature: { value: 20.1, label: "20.1°C", level: "normal" },
+      maturity:    { value: 75,   label: "75%",  level: "normal" },
+    },
+  },
+  {
+    id: "P-03",
+    name: "Del Taco Sur",
+    variety: "Cabernet Sauvignon",
+    ha: 5.1,
+    age: 30,
+    status: "attention",
+    polygon: [[-38.9280,-68.0510],[-38.9265,-68.0470],[-38.9290,-68.0458],[-38.9305,-68.0498]],
+    indicators: {
+      ndvi:        { value: 0.48, label: "0.48", level: "low" },
+      moisture:    { value: 38,   label: "38%",  level: "critical" },
+      temperature: { value: 22.3, label: "22.3°C", level: "high" },
+      maturity:    { value: 60,   label: "60%",  level: "normal" },
+    },
+  },
+  {
+    id: "P-04",
+    name: "Chardonnay Nolly",
+    variety: "Chardonnay",
+    ha: 2.9,
+    age: 14,
+    status: "healthy",
+    polygon: [[-38.9255,-68.0540],[-38.9240,-68.0500],[-38.9262,-68.0488],[-38.9278,-68.0528]],
+    indicators: {
+      ndvi:        { value: 0.78, label: "0.78", level: "optimal" },
+      moisture:    { value: 74,   label: "74%",  level: "optimal" },
+      temperature: { value: 17.8, label: "17.8°C", level: "normal" },
+      maturity:    { value: 55,   label: "55%",  level: "normal" },
+    },
+  },
+  {
+    id: "P-05",
+    name: "Quark Central",
+    variety: "Malbec",
+    ha: 6.4,
+    age: 28,
+    status: "healthy",
+    polygon: [[-38.9300,-68.0560],[-38.9285,-68.0520],[-38.9308,-68.0505],[-38.9325,-68.0545]],
+    indicators: {
+      ndvi:        { value: 0.69, label: "0.69", level: "normal" },
+      moisture:    { value: 61,   label: "61%",  level: "normal" },
+      temperature: { value: 18.9, label: "18.9°C", level: "normal" },
+      maturity:    { value: 88,   label: "88%",  level: "advanced" },
+    },
+  },
+  {
+    id: "P-06",
+    name: "Vino Valet",
+    variety: "Pinot Noir",
+    ha: 1.8,
+    age: 11,
+    status: "attention",
+    polygon: [[-38.9338,-68.0548],[-38.9323,-68.0508],[-38.9345,-68.0495],[-38.9360,-68.0535]],
+    indicators: {
+      ndvi:        { value: 0.55, label: "0.55", level: "normal" },
+      moisture:    { value: 44,   label: "44%",  level: "low" },
+      temperature: { value: 21.0, label: "21.0°C", level: "normal" },
+      maturity:    { value: 40,   label: "40%",  level: "early" },
+    },
+  },
+];
+---
+
+<AppLayout title="Mapa del Viñedo">
+  <div class="flex h-[calc(100vh-0px)] overflow-hidden">
+
+    <!-- ── Left panel ────────────────────────────────────── -->
+    <aside class="w-72 shrink-0 border-r border-border bg-card flex flex-col overflow-hidden">
+
+      <!-- Panel header -->
+      <div class="px-4 pt-5 pb-4 border-b border-border">
+        <h1 class="font-display font-bold text-[15px]">Mapa de Fincas</h1>
+        <p class="text-[11px] text-muted-foreground mt-0.5">Alto Valle · Río Negro · Patagonia</p>
+
+        <!-- Total ha badge -->
+        <div class="mt-3 flex items-center gap-2">
+          <div class="flex-1 rounded-lg bg-muted/50 px-3 py-2 text-center">
+            <p class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total superficie</p>
+            <p class="font-display font-bold text-xl" style="color:#4E0707;">
+              {plots.reduce((s, p) => s + p.ha, 0).toFixed(1)} ha
+            </p>
+          </div>
+          <div class="flex-1 rounded-lg bg-muted/50 px-3 py-2 text-center">
+            <p class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Parcelas</p>
+            <p class="font-display font-bold text-xl" style="color:#4E0707;">{plots.length}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Indicator selector -->
+      <div class="px-4 py-3 border-b border-border">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Indicador</p>
+        <div class="grid grid-cols-2 gap-1.5">
+          {[
+            { id: "ndvi",        label: "NDVI",         icon: "🌿" },
+            { id: "moisture",    label: "Humedad",       icon: "💧" },
+            { id: "temperature", label: "Temperatura",   icon: "🌡️" },
+            { id: "maturity",    label: "Maduración",    icon: "🍇" },
+          ].map(({ id, label, icon }) => (
+            <button
+              class="indicator-btn rounded-md px-2.5 py-2 text-[11px] font-semibold text-left flex items-center gap-1.5 border border-border hover:bg-muted/60 transition-colors"
+              data-indicator={id}
+              id={`ind-btn-${id}`}>
+              <span>{icon}</span> {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <!-- Heatmap legend -->
+      <div id="legend-panel" class="px-4 py-3 border-b border-border hidden">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Escala</p>
+        <div class="flex items-center gap-1 rounded-md overflow-hidden h-3">
+          <div class="flex-1 h-full rounded-l-sm" style="background:#EF4444;"/>
+          <div class="flex-1 h-full" style="background:#F59E0B;"/>
+          <div class="flex-1 h-full" style="background:#22C55E;"/>
+          <div class="flex-1 h-full rounded-r-sm" style="background:#3B82F6;"/>
+        </div>
+        <div class="flex justify-between mt-1">
+          <span class="text-[9px] text-muted-foreground">Bajo</span>
+          <span class="text-[9px] text-muted-foreground">Óptimo</span>
+        </div>
+      </div>
+
+      <!-- Plot list -->
+      <div class="flex-1 overflow-y-auto py-2">
+        {plots.map((p) => (
+          <button
+            class="plot-list-item w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-start gap-3 border-l-2"
+            data-plot-id={p.id}
+            style={`border-color: transparent;`}>
+            <div class="size-8 rounded-lg shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
+              style={`background: ${p.status === "healthy" ? "#4E0707" : "#B8860B"};`}>
+              {p.id.replace("P-", "")}
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-[12px] font-semibold leading-tight truncate">{p.name}</p>
+              <p class="text-[10px] text-muted-foreground mt-0.5">{p.variety} · {p.ha} ha · {p.age} años</p>
+            </div>
+            <span class="shrink-0 size-2 rounded-full mt-1.5"
+              style={`background: ${p.status === "healthy" ? "#22C55E" : "#F59E0B"};`}/>
+          </button>
+        ))}
+      </div>
+
+      <!-- Config note -->
+      <div class="px-4 py-3 border-t border-border">
+        <button id="btn-config"
+          class="w-full flex items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[11px] font-medium text-muted-foreground hover:bg-muted/60 transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-3.5">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Configurar parcelas
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── Map container ─────────────────────────────────── -->
+    <div class="flex-1 relative">
+      <div id="map" class="w-full h-full"/>
+
+      <!-- Zoom controls -->
+      <div class="absolute top-4 right-4 z-1000 flex flex-col overflow-hidden rounded-lg shadow-md border border-border">
+        <button id="zoom-in"
+          class="bg-card hover:bg-muted/60 px-3 py-2.5 text-sm font-bold transition-colors border-b border-border">+</button>
+        <button id="zoom-out"
+          class="bg-card hover:bg-muted/60 px-3 py-2.5 text-sm font-bold transition-colors">−</button>
+      </div>
+
+      <!-- Mode toggle -->
+      <div class="absolute top-4 left-4 z-1000 flex gap-2">
+        <button id="btn-normal"
+          class="map-mode-btn rounded-lg px-3 py-1.5 text-[12px] font-semibold shadow-md border transition-colors"
+          style="background:#4E0707; color:#F5F0EB; border-color:#4E0707;">
+          Normal
+        </button>
+        <button id="btn-heatmap"
+          class="map-mode-btn rounded-lg px-3 py-1.5 text-[12px] font-semibold shadow-md border border-border bg-card transition-colors hover:bg-muted/60">
+          Mapa de Calor
+        </button>
+      </div>
+
+      <!-- Infowindow -->
+      <div id="infowindow"
+        class="absolute bottom-6 left-4 z-1000 hidden w-72 rounded-xl bg-card border border-border shadow-xl overflow-hidden">
+        <div id="iw-header" class="px-4 py-3 flex items-start justify-between" style="background:#4E070712;">
+          <div>
+            <p id="iw-id" class="font-mono text-[10px] font-bold" style="color:#4E0707;"/>
+            <p id="iw-name" class="font-display font-bold text-[15px] leading-tight mt-0.5"/>
+            <p id="iw-variety" class="text-[11px] text-muted-foreground mt-0.5"/>
+          </div>
+          <button id="iw-close"
+            class="shrink-0 size-6 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors text-sm mt-0.5">✕</button>
+        </div>
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 border-b border-border">
+          {[
+            { id: "iw-ha",   label: "Hectáreas" },
+            { id: "iw-age",  label: "Años cepa" },
+            { id: "iw-stat", label: "Estado" },
+          ].map(({ id, label }) => (
+            <div class="text-center">
+              <p id={id} class="font-bold text-base font-display"/>
+              <p class="text-[10px] text-muted-foreground">{label}</p>
+            </div>
+          ))}
+        </div>
+        <div class="px-4 py-3 space-y-2">
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Indicadores</p>
+          {[
+            { id: "iw-ndvi",        label: "NDVI",        icon: "🌿" },
+            { id: "iw-moisture",    label: "Humedad",      icon: "💧" },
+            { id: "iw-temperature", label: "Temperatura",  icon: "🌡️" },
+            { id: "iw-maturity",    label: "Maduración",   icon: "🍇" },
+          ].map(({ id, label, icon }) => (
+            <div class="flex items-center justify-between text-[12px]">
+              <span class="text-muted-foreground flex items-center gap-1.5"><span>{icon}</span>{label}</span>
+              <span id={id} class="font-mono font-bold"/>
+            </div>
+          ))}
+        </div>
+        <div class="px-4 pb-3 flex gap-2">
+          <button class="flex-1 rounded-md border border-border py-1.5 text-[11px] font-medium hover:bg-muted/60 transition-colors">
+            Ver Registro
+          </button>
+          <button class="flex-1 rounded-md py-1.5 text-[11px] font-medium text-white transition-colors hover:opacity-90"
+            style="background:#4E0707;">
+            Asignar Tarea
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</AppLayout>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+
+<script>
+  // ── Leaflet loaded dynamically ─────────────────────────────
+  const plotsData = [
+    {
+      id: "P-01", name: "Parcela Noreste",   variety: "Malbec",             ha: 4.2, age: 22, status: "healthy",
+      polygon: [[-38.9310,-68.0480],[-38.9295,-68.0440],[-38.9320,-68.0430],[-38.9335,-68.0470]],
+      indicators: { ndvi:{value:0.72,label:"0.72",level:"optimal"}, moisture:{value:68,label:"68%",level:"optimal"}, temperature:{value:19.4,label:"19.4°C",level:"normal"}, maturity:{value:82,label:"82%",level:"advanced"} },
+    },
+    {
+      id: "P-02", name: "Parcela Sur",        variety: "Malbec",             ha: 3.8, age: 18, status: "healthy",
+      polygon: [[-38.9345,-68.0475],[-38.9330,-68.0435],[-38.9355,-68.0425],[-38.9370,-68.0465]],
+      indicators: { ndvi:{value:0.65,label:"0.65",level:"normal"}, moisture:{value:52,label:"52%",level:"low"}, temperature:{value:20.1,label:"20.1°C",level:"normal"}, maturity:{value:75,label:"75%",level:"normal"} },
+    },
+    {
+      id: "P-03", name: "Del Taco Sur",       variety: "Cabernet Sauvignon", ha: 5.1, age: 30, status: "attention",
+      polygon: [[-38.9280,-68.0510],[-38.9265,-68.0470],[-38.9290,-68.0458],[-38.9305,-68.0498]],
+      indicators: { ndvi:{value:0.48,label:"0.48",level:"low"}, moisture:{value:38,label:"38%",level:"critical"}, temperature:{value:22.3,label:"22.3°C",level:"high"}, maturity:{value:60,label:"60%",level:"normal"} },
+    },
+    {
+      id: "P-04", name: "Chardonnay Nolly",   variety: "Chardonnay",         ha: 2.9, age: 14, status: "healthy",
+      polygon: [[-38.9255,-68.0540],[-38.9240,-68.0500],[-38.9262,-68.0488],[-38.9278,-68.0528]],
+      indicators: { ndvi:{value:0.78,label:"0.78",level:"optimal"}, moisture:{value:74,label:"74%",level:"optimal"}, temperature:{value:17.8,label:"17.8°C",level:"normal"}, maturity:{value:55,label:"55%",level:"normal"} },
+    },
+    {
+      id: "P-05", name: "Quark Central",      variety: "Malbec",             ha: 6.4, age: 28, status: "healthy",
+      polygon: [[-38.9300,-68.0560],[-38.9285,-68.0520],[-38.9308,-68.0505],[-38.9325,-68.0545]],
+      indicators: { ndvi:{value:0.69,label:"0.69",level:"normal"}, moisture:{value:61,label:"61%",level:"normal"}, temperature:{value:18.9,label:"18.9°C",level:"normal"}, maturity:{value:88,label:"88%",level:"advanced"} },
+    },
+    {
+      id: "P-06", name: "Vino Valet",         variety: "Pinot Noir",         ha: 1.8, age: 11, status: "attention",
+      polygon: [[-38.9338,-68.0548],[-38.9323,-68.0508],[-38.9345,-68.0495],[-38.9360,-68.0535]],
+      indicators: { ndvi:{value:0.55,label:"0.55",level:"normal"}, moisture:{value:44,label:"44%",level:"low"}, temperature:{value:21.0,label:"21.0°C",level:"normal"}, maturity:{value:40,label:"40%",level:"early"} },
+    },
+  ] as const;
+
+  type IndicatorKey = "ndvi" | "moisture" | "temperature" | "maturity";
+  type Level = "optimal" | "normal" | "low" | "critical" | "advanced" | "high" | "early";
+
+  const levelColor: Record<Level, string> = {
+    optimal:  "#22C55E",
+    advanced: "#22C55E",
+    normal:   "#B8860B",
+    low:      "#F59E0B",
+    early:    "#3B82F6",
+    high:     "#F59E0B",
+    critical: "#EF4444",
+  };
+
+  const defaultFill = "#4E0707";
+  let currentIndicator: IndicatorKey | null = null;
+  let heatmapMode = false;
+  let map: any;
+  let polygonLayers: any[] = [];
+  let selectedPlotId: string | null = null;
+
+  function getIndicatorColor(plot: typeof plotsData[number], key: IndicatorKey): string {
+    return levelColor[plot.indicators[key].level as Level] ?? "#8B7355";
+  }
+
+  function updatePolygonStyles() {
+    polygonLayers.forEach(({ layer, plot }) => {
+      const isSelected = plot.id === selectedPlotId;
+      const fill = heatmapMode && currentIndicator
+        ? getIndicatorColor(plot, currentIndicator)
+        : (plot.status === "healthy" ? defaultFill : "#B8860B");
+      layer.setStyle({
+        fillColor: fill,
+        fillOpacity: isSelected ? 0.75 : (heatmapMode ? 0.6 : 0.45),
+        color: isSelected ? "#F5F0EB" : fill,
+        weight: isSelected ? 2.5 : 1.5,
+        opacity: isSelected ? 1 : 0.8,
+      });
+    });
+  }
+
+  function showInfowindow(plot: typeof plotsData[number]) {
+    selectedPlotId = plot.id;
+    updatePolygonStyles();
+
+    const iw = document.getElementById("infowindow")!;
+    (document.getElementById("iw-id") as HTMLElement).textContent     = plot.id;
+    (document.getElementById("iw-name") as HTMLElement).textContent   = plot.name;
+    (document.getElementById("iw-variety") as HTMLElement).textContent = `${plot.variety} · ${plot.ha} ha`;
+    (document.getElementById("iw-ha") as HTMLElement).textContent     = `${plot.ha} ha`;
+    (document.getElementById("iw-age") as HTMLElement).textContent    = `${plot.age} a.`;
+    const statEl = document.getElementById("iw-stat") as HTMLElement;
+    statEl.textContent = plot.status === "healthy" ? "✓ OK" : "⚠ Atención";
+    statEl.style.color = plot.status === "healthy" ? "#22C55E" : "#F59E0B";
+
+    const keys: IndicatorKey[] = ["ndvi","moisture","temperature","maturity"];
+    keys.forEach((k) => {
+      const el = document.getElementById(`iw-${k}`) as HTMLElement;
+      el.textContent = plot.indicators[k].label;
+      el.style.color = levelColor[plot.indicators[k].level as Level];
+    });
+
+    iw.classList.remove("hidden");
+
+    // highlight list item
+    document.querySelectorAll<HTMLElement>(".plot-list-item").forEach((btn) => {
+      btn.style.borderColor = btn.dataset.plotId === plot.id ? "#4E0707" : "transparent";
+      btn.style.background  = btn.dataset.plotId === plot.id ? "rgba(78,7,7,0.06)" : "";
+    });
+  }
+
+  function hideInfowindow() {
+    document.getElementById("infowindow")!.classList.add("hidden");
+    selectedPlotId = null;
+    updatePolygonStyles();
+    document.querySelectorAll<HTMLElement>(".plot-list-item").forEach((btn) => {
+      btn.style.borderColor = "transparent"; btn.style.background = "";
+    });
+  }
+
+  async function initMap() {
+    // @ts-ignore — Leaflet loaded from CDN
+    const L = (window as any).L;
+    if (!L) return;
+
+    const center = [-38.9308, -68.0508] as [number, number];
+    map = L.map("map", { center, zoom: 14, zoomControl: false, attributionControl: false });
+
+    // ESRI satellite tiles (free, no key needed)
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19, attribution: "ESRI" }
+    ).addTo(map);
+
+    // Attribution (small, bottom-right)
+    L.control.attribution({ prefix: false, position: "bottomright" }).addTo(map);
+
+    // Plot polygons
+    plotsData.forEach((plot) => {
+      const layer = L.polygon(plot.polygon as [number,number][], {
+        fillColor: defaultFill, fillOpacity: 0.45,
+        color: defaultFill, weight: 1.5, opacity: 0.8,
+      }).addTo(map);
+
+      // Label marker at centroid
+      const bounds = layer.getBounds();
+      const c = bounds.getCenter();
+      const label = L.divIcon({
+        className: "",
+        html: `<div style="background:rgba(28,8,8,0.75);color:#F5F0EB;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;font-family:Inter,sans-serif;">${plot.id}</div>`,
+        iconAnchor: [18, 10],
+      });
+      L.marker(c, { icon: label, interactive: false }).addTo(map);
+
+      layer.on("click", () => showInfowindow(plot));
+      layer.on("mouseover", () => {
+        if (plot.id !== selectedPlotId) {
+          layer.setStyle({ fillOpacity: 0.65, weight: 2 });
+        }
+      });
+      layer.on("mouseout", () => updatePolygonStyles());
+
+      polygonLayers.push({ layer, plot });
+    });
+
+    // Fit all plots
+    const group = L.featureGroup(polygonLayers.map(({ layer }) => layer));
+    map.fitBounds(group.getBounds().pad(0.15));
+  }
+
+  // ── Load Leaflet ────────────────────────────────────────────
+  const script = document.createElement("script");
+  script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  script.crossOrigin = "";
+  script.onload = initMap;
+  document.head.appendChild(script);
+
+  // ── Zoom buttons ────────────────────────────────────────────
+  document.getElementById("zoom-in")!.addEventListener("click",  () => map?.zoomIn());
+  document.getElementById("zoom-out")!.addEventListener("click", () => map?.zoomOut());
+
+  // ── Map mode ────────────────────────────────────────────────
+  document.getElementById("btn-normal")!.addEventListener("click", () => {
+    heatmapMode = false;
+    document.getElementById("legend-panel")!.classList.add("hidden");
+    document.getElementById("btn-normal")!.style.cssText   = "background:#4E0707;color:#F5F0EB;border-color:#4E0707;";
+    document.getElementById("btn-heatmap")!.style.cssText  = "";
+    updatePolygonStyles();
+  });
+  document.getElementById("btn-heatmap")!.addEventListener("click", () => {
+    heatmapMode = true;
+    document.getElementById("legend-panel")!.classList.remove("hidden");
+    document.getElementById("btn-heatmap")!.style.cssText  = "background:#4E0707;color:#F5F0EB;border-color:#4E0707;";
+    document.getElementById("btn-normal")!.style.cssText   = "";
+    if (!currentIndicator) {
+      currentIndicator = "ndvi";
+      document.getElementById("ind-btn-ndvi")?.click();
+    }
+    updatePolygonStyles();
+  });
+
+  // ── Indicator buttons ────────────────────────────────────────
+  const indBtns = document.querySelectorAll<HTMLElement>(".indicator-btn");
+  indBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      currentIndicator = (btn.dataset.indicator as IndicatorKey) ?? null;
+      if (!heatmapMode) {
+        heatmapMode = true;
+        document.getElementById("btn-heatmap")!.style.cssText = "background:#4E0707;color:#F5F0EB;border-color:#4E0707;";
+        document.getElementById("btn-normal")!.style.cssText  = "";
+        document.getElementById("legend-panel")!.classList.remove("hidden");
+      }
+      indBtns.forEach((b) => {
+        b.style.background   = b === btn ? "#4E070710" : "";
+        b.style.borderColor  = b === btn ? "#4E0707" : "";
+        b.style.color        = b === btn ? "#4E0707" : "";
+      });
+      updatePolygonStyles();
+    });
+  });
+
+  // ── Plot list click ─────────────────────────────────────────
+  document.querySelectorAll<HTMLElement>(".plot-list-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const plotId = btn.dataset.plotId;
+      const entry = plotsData.find((p) => p.id === plotId);
+      if (!entry) return;
+      showInfowindow(entry);
+      const layer = polygonLayers.find(({ plot }) => plot.id === plotId)?.layer;
+      if (layer && map) map.fitBounds(layer.getBounds().pad(0.3));
+    });
+  });
+
+  // ── Infowindow close ────────────────────────────────────────
+  document.getElementById("iw-close")!.addEventListener("click", hideInfowindow);
+
+  // ── Config modal (stub) ─────────────────────────────────────
+  document.getElementById("btn-config")!.addEventListener("click", () => {
+    alert("Configuración de parcelas: próximamente podrás editar los polígonos directamente en el mapa.");
+  });
+</script>
+
+<style>
+  /* Remove default Leaflet focus outlines */
+  .leaflet-container { background: #1A2E1A; font-family: Inter, sans-serif; }
+  .leaflet-control-attribution { font-size: 9px; opacity: 0.5; background: transparent !important; color: #fff !important; }
+  .leaflet-control-attribution a { color: #fff !important; }
+</style>

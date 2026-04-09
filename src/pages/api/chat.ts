@@ -3,7 +3,7 @@ import { toolDefs } from "@/lib/agent/tools";
 import { executeTool } from "@/lib/agent/executor";
 
 const LLM_BASE_URL =
-  process.env.LLM_BASE_URL ?? "http://10.1.200.130:8001/v1";
+  process.env.LLM_BASE_URL ?? "http://10.1.200.116:8001/v1";
 const LLM_MODEL =
   process.env.LLM_MODEL ?? "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ";
 
