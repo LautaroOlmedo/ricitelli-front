@@ -9,6 +9,37 @@ export interface Product {
   id: string;
   name: string;
   bom: BillOfDrySupply[];
+  image_url?: string;
+}
+
+// ── Vineyard ──────────────────────────────────────────────────────────────
+
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+export interface Plot {
+  id: string;
+  name: string;
+  variety: string;
+  ha: number;
+  age: number;
+  status: string;
+  polygon: LatLng[];
+}
+
+export interface CreatePlotInput {
+  name: string;
+  variety: string;
+  ha: number;
+  age: number;
+  status: string;
+  polygon: LatLng[];
+}
+
+export interface UpdatePlotInput extends CreatePlotInput {
+  id: string;
 }
 
 export interface CreateProductInput {

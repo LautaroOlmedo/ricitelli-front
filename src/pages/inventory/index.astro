@@ -261,6 +261,15 @@ const palette = [
                       </div>
                       <p class="text-[10px] text-muted-foreground mt-1 text-right">{pct}% disponible</p>
                     </div>
+                    <button
+                      class="btn-add-stock w-full flex items-center justify-center gap-1.5 rounded-md border border-border bg-background py-1.5 text-[12px] font-semibold hover:bg-muted/60 transition-colors"
+                      data-supply-id={a.dry_supply_id}
+                      data-supply-name={a.name}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+                        <path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      Añadir Stock
+                    </button>
                   </div>
                 );
               })}
@@ -334,6 +343,32 @@ const palette = [
     <div class="flex justify-end gap-2 mt-6">
       <button id="cv-cancel" class="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-muted/60 transition-colors">Cancelar</button>
       <button id="cv-confirm" class="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">Convertir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Añadir Stock Insumo ───────────────────────────── -->
+<div id="modal-add-stock-ds" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm">
+  <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+    <h2 class="text-base font-semibold mb-1">Añadir Stock</h2>
+    <p id="ds-modal-name" class="text-xs text-muted-foreground mb-4"></p>
+    <div class="space-y-3">
+      <div>
+        <label for="ds-quantity" class="text-sm font-medium">Cantidad <span class="text-destructive">*</span></label>
+        <input id="ds-quantity" type="number" min="1" value="100"
+          class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <div>
+        <label for="ds-reference" class="text-sm font-medium">Referencia</label>
+        <input id="ds-reference" type="text" placeholder="ej: compra proveedor"
+          class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <p id="ds-error"   class="hidden text-xs text-destructive"></p>
+      <p id="ds-success" class="hidden text-xs font-medium" style="color:#22C55E;"></p>
+    </div>
+    <div class="flex justify-end gap-2 mt-6">
+      <button id="ds-cancel"  class="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-muted/60 transition-colors">Cancelar</button>
+      <button id="ds-confirm" class="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">Añadir</button>
     </div>
   </div>
 </div>
@@ -431,5 +466,46 @@ const palette = [
         cvError.textContent = body.error ?? `Error ${res.status}`; cvError.classList.remove("hidden");
       }
     } catch { cvError.textContent = "Error de red."; cvError.classList.remove("hidden"); }
+  });
+
+  // ── Add dry supply stock modal ────────────────────────────
+  const modalDS  = document.getElementById("modal-add-stock-ds")!;
+  const dsQty    = document.getElementById("ds-quantity")    as HTMLInputElement;
+  const dsRef    = document.getElementById("ds-reference")   as HTMLInputElement;
+  const dsError  = document.getElementById("ds-error")!;
+  const dsSuccess = document.getElementById("ds-success")!;
+  let _dsSupplyId = "";
+
+  document.getElementById("ds-cancel")!.addEventListener("click", () => hideModal(modalDS));
+  modalDS.addEventListener("click", (e) => { if (e.target === modalDS) hideModal(modalDS); });
+
+  document.querySelectorAll<HTMLElement>(".btn-add-stock").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      _dsSupplyId = btn.dataset.supplyId ?? "";
+      document.getElementById("ds-modal-name")!.textContent = btn.dataset.supplyName ?? "";
+      dsQty.value = "100"; dsRef.value = "";
+      dsError.classList.add("hidden"); dsSuccess.classList.add("hidden");
+      showModal(modalDS);
+    });
+  });
+
+  document.getElementById("ds-confirm")!.addEventListener("click", async () => {
+    dsError.classList.add("hidden"); dsSuccess.classList.add("hidden");
+    const qty = parseInt(dsQty.value, 10);
+    if (!_dsSupplyId) { dsError.textContent = "Insumo no identificado."; dsError.classList.remove("hidden"); return; }
+    if (!qty || qty < 1) { dsError.textContent = "Cantidad debe ser > 0."; dsError.classList.remove("hidden"); return; }
+    try {
+      const res = await fetch(`/api/dry-supplies/${_dsSupplyId}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: qty, reference: dsRef.value.trim() || "manual" }),
+      });
+      if (res.ok) {
+        dsSuccess.textContent = "Stock añadido. Recargando…"; dsSuccess.classList.remove("hidden");
+        setTimeout(() => { hideModal(modalDS); window.location.reload(); }, 1200);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        dsError.textContent = body.error ?? `Error ${res.status}`; dsError.classList.remove("hidden");
+      }
+    } catch { dsError.textContent = "Error de red."; dsError.classList.remove("hidden"); }
   });
 </script>

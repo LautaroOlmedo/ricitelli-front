@@ -34,10 +34,11 @@ function meta(token?: string): grpc.Metadata {
 
 function mapProduct(r: any): Product {
   return {
-    id: r.id ?? "",
-    name: r.name ?? "",
+    id:        r.id ?? "",
+    name:      r.name ?? "",
+    image_url: r.image_url ?? "",
     bom: (r.bom ?? []).map((b: any) => ({
-      dry_supply_id: b.dry_supply_id ?? "",
+      dry_supply_id:    b.dry_supply_id ?? "",
       quantity_per_unit: Number(b.quantity_per_unit ?? 0),
     })),
   };
@@ -82,6 +83,19 @@ export async function createProduct(
         resolve();
       }
     );
+  });
+}
+
+export async function setProductImage(
+  id: string,
+  imageUrl: string,
+  token?: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    getClient().SetProductImage({ id, image_url: imageUrl }, meta(token), (err: any) => {
+      if (err) return reject(err);
+      resolve();
+    });
   });
 }
 
