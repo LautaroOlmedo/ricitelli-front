@@ -37,7 +37,7 @@ function mapProduct(r: any): Product {
     id:        r.id ?? "",
     name:      r.name ?? "",
     image_url: r.image_url ?? "",
-    bom: (r.bom ?? []).map((b: any) => ({
+    bom: (r.bods ?? []).map((b: any) => ({
       dry_supply_id:    b.dry_supply_id ?? "",
       quantity_per_unit: Number(b.quantity_per_unit ?? 0),
     })),
@@ -72,7 +72,7 @@ export async function createProduct(
     getClient().CreateProduct(
       {
         name,
-        bom: bom.map((b) => ({
+        bods: bom.map((b) => ({
           dry_supply_id: b.dry_supply_id,
           quantity_per_unit: b.quantity_per_unit,
         })),

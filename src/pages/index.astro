@@ -67,7 +67,7 @@ const statusLabel: Record<string, string> = {
         { label: "Clientes",          value: String((customers as any[]).length),                href: "/customers",        color: "" },
         { label: "Pedidos de Venta",  value: String((saleOrders as any[]).length),              href: "/sale-orders",      color: "" },
         { label: "En Producción",     value: String((prodOrders as any[]).length),              href: "/production-orders",color: "" },
-        { label: "Alertas de Stock",  value: String(lowAlerts.length),                           href: "/inventory",        color: lowAlerts.length > 0 ? "text-destructive" : "text-green-600" },
+        { label: "Alertas de Stock",  value: String(lowAlerts.length),                           href: "/dry-supplies",     color: lowAlerts.length > 0 ? "text-destructive" : "text-green-600" },
       ].map(({ label, value, href, color }) => (
         <a href={href} class="rounded-xl border border-border bg-card p-5 hover:bg-muted/30 transition-colors group">
           <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
@@ -112,7 +112,7 @@ const statusLabel: Record<string, string> = {
       <div class="rounded-xl border border-border bg-card p-5">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-sm font-semibold">Alertas de Insumos</h2>
-          <a href="/inventory" class="text-xs text-primary hover:underline">Ver todo</a>
+          <a href="/dry-supplies" class="text-xs text-primary hover:underline">Ver todo</a>
         </div>
         {lowAlerts.length === 0 ? (
           <div class="flex items-center gap-2 text-sm text-green-600">
