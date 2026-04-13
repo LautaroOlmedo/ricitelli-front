@@ -12,18 +12,50 @@ let error = "";
 try {
   [orders] = await Promise.all([
     getSaleOrders(token),
-    getCustomers(token).then((cs) => { customerMap = Object.fromEntries(cs.map((c) => [c.id, c.social_reason])); }).catch(() => {}),
+    getCustomers(token)
+      .then((cs) => { customerMap = Object.fromEntries(cs.map((c) => [c.id, c.social_reason])); })
+      .catch(() => {}),
   ]);
 } catch (e: any) {
   error = e.message;
 }
 
 const columns = [
-  { status: "NEW",        label: "Nuevo",       color: "border-t-slate-400",   badge: "bg-secondary text-secondary-foreground" },
-  { status: "CONFIRMED",  label: "Confirmado",  color: "border-t-blue-500",    badge: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" },
-  { status: "INVOICED",   label: "Facturado",   color: "border-t-yellow-500",  badge: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300" },
-  { status: "DISPATCHED", label: "Despachado",  color: "border-t-green-500",   badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" },
-  { status: "CANCELLED",  label: "Cancelado",   color: "border-t-red-500",     badge: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" },
+  {
+    status:  "NEW",
+    label:   "Nuevo",
+    accent:  "#64748B",
+    bgLight: "rgba(100,116,139,0.06)",
+    badge:   { bg: "#64748B18", color: "#475569" },
+  },
+  {
+    status:  "CONFIRMED",
+    label:   "Confirmado",
+    accent:  "#2563EB",
+    bgLight: "rgba(37,99,235,0.05)",
+    badge:   { bg: "#2563EB18", color: "#1D4ED8" },
+  },
+  {
+    status:  "INVOICED",
+    label:   "Facturado",
+    accent:  "#B8860B",
+    bgLight: "rgba(184,134,11,0.06)",
+    badge:   { bg: "#B8860B18", color: "#92690A" },
+  },
+  {
+    status:  "DISPATCHED",
+    label:   "Despachado",
+    accent:  "#556B2F",
+    bgLight: "rgba(85,107,47,0.06)",
+    badge:   { bg: "#556B2F18", color: "#3D5022" },
+  },
+  {
+    status:  "CANCELLED",
+    label:   "Cancelado",
+    accent:  "#9B1C1C",
+    bgLight: "rgba(155,28,28,0.05)",
+    badge:   { bg: "#9B1C1C18", color: "#7F1D1D" },
+  },
 ];
 
 const byStatus: Record<string, any[]> = {};
@@ -33,95 +65,484 @@ for (const o of orders) {
   if (byStatus[s]) byStatus[s].push(o);
   else byStatus["NEW"].push(o);
 }
+
+const marketLabel: Record<string, string> = {
+  DOMESTIC: "DOM", EXPORT: "EXP",
+};
+const currencySymbol: Record<string, string> = {
+  ARS: "$", USD: "U$S", EUR: "€", CAD: "C$",
+};
 ---
 
 <AppLayout title="Kanban — Pedidos">
-  <div class="px-8 py-8">
+  <div class="px-6 pt-6 pb-0 h-[calc(100vh-64px)] flex flex-col gap-4">
 
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
+    <!-- Header row -->
+    <div class="flex items-center justify-between shrink-0">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Kanban — Pedidos de Venta</h1>
-        <p class="text-sm text-muted-foreground mt-1">{orders.length} pedido{orders.length !== 1 ? "s" : ""} en total</p>
+        <h1 class="text-xl font-bold tracking-tight font-display">Kanban — Pedidos de Venta</h1>
+        <p id="total-label" class="text-xs text-muted-foreground mt-0.5">{orders.length} pedido{orders.length !== 1 ? "s" : ""} · arrastrá para cambiar estado</p>
       </div>
       <div class="flex items-center gap-2">
-        <a
-          href="/sale-orders"
-          class="inline-flex items-center gap-2 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
-        >
+        <a href="/sale-orders"
+          class="inline-flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted/60 transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke-linecap="round"/>
+          </svg>
           Lista
         </a>
-        <a
-          href="/sale-orders/new"
-          class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
+        <a href="/sale-orders/new"
+          class="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 transition-colors">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
             <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
           </svg>
-          Nuevo Pedido
+          Nuevo
         </a>
       </div>
     </div>
 
+    <!-- Search + filter bar -->
+    <div class="flex items-center gap-2 shrink-0 flex-wrap">
+      <!-- Search -->
+      <div class="relative flex-1 min-w-48 max-w-72">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/>
+        </svg>
+        <input id="kanban-search" type="search" placeholder="Buscar cliente, ID…"
+          class="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+
+      <!-- Market filter pills -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-[11px] text-muted-foreground font-medium">Mercado:</span>
+        {["Todos", "DOMESTIC", "EXPORT"].map((m) => (
+          <button
+            class="filter-market rounded-full px-2.5 py-1 text-[11px] font-semibold border transition-colors"
+            data-market={m}
+            style={m === "Todos" ? "background:#4E070712;color:#4E0707;border-color:#4E070730;" : "background:transparent;color:var(--muted-foreground);border-color:var(--border);"}>
+            {m === "Todos" ? "Todos" : m === "DOMESTIC" ? "Nacional" : "Export"}
+          </button>
+        ))}
+      </div>
+
+      <!-- Currency filter pills -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-[11px] text-muted-foreground font-medium">Moneda:</span>
+        {["Todos", "ARS", "USD", "EUR"].map((c) => (
+          <button
+            class="filter-currency rounded-full px-2.5 py-1 text-[11px] font-semibold border transition-colors"
+            data-currency={c}
+            style={c === "Todos" ? "background:#4E070712;color:#4E0707;border-color:#4E070730;" : "background:transparent;color:var(--muted-foreground);border-color:var(--border);"}>
+            {c}
+          </button>
+        ))}
+      </div>
+
+      <!-- Clear -->
+      <button id="btn-clear-filters" class="hidden text-[11px] text-muted-foreground hover:text-foreground underline transition-colors ml-1">
+        Limpiar
+      </button>
+    </div>
+
     {error && (
-      <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive mb-6">{error}</div>
+      <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive shrink-0">{error}</div>
     )}
 
-    <!-- Kanban board -->
-    <div class="flex gap-4 overflow-x-auto pb-4 items-start">
+    <!-- Toast -->
+    <div id="toast" style="display:none;" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl border border-border bg-card shadow-xl px-5 py-3 text-sm font-medium items-center gap-2.5 min-w-65">
+      <span id="toast-icon"></span>
+      <span id="toast-msg"></span>
+    </div>
+
+    <!-- Board — each column stretches to remaining height and scrolls internally -->
+    <div id="kanban-board" class="flex gap-4 overflow-x-auto pb-4 flex-1 min-h-0">
       {columns.map((col) => {
         const colOrders = byStatus[col.status] ?? [];
         return (
-          <div class={`flex-shrink-0 w-72 rounded-xl border border-border bg-muted/30 border-t-4 ${col.color} flex flex-col`}>
+          <div
+            class="kanban-column shrink-0 w-72 rounded-xl border border-border flex flex-col overflow-hidden"
+            data-status={col.status}
+            style={`background:${col.bgLight}; border-top: 3px solid ${col.accent};`}
+          >
             <!-- Column header -->
-            <div class="px-4 py-3 border-b border-border flex items-center justify-between">
-              <span class="text-sm font-semibold">{col.label}</span>
-              <span class="inline-flex items-center justify-center rounded-full bg-background border border-border size-6 text-xs font-medium">
+            <div class="px-4 py-3 border-b border-border flex items-center justify-between"
+              style={`background: ${col.accent}10;`}>
+              <div class="flex items-center gap-2">
+                <span class="size-2 rounded-full shrink-0" style={`background:${col.accent};`}></span>
+                <span class="text-[13px] font-bold tracking-wide" style={`color:${col.accent};`}>{col.label}</span>
+              </div>
+              <span
+                class="kanban-count inline-flex items-center justify-center rounded-full size-6 text-[11px] font-bold border"
+                style={`background:${col.accent}18; color:${col.accent}; border-color:${col.accent}30;`}>
                 {colOrders.length}
               </span>
             </div>
 
-            <!-- Cards -->
-            <div class="p-3 space-y-2 min-h-[120px]">
+            <!-- Drop zone -->
+            <div
+              class="kanban-drop-zone p-3 space-y-2.5 flex-1 min-h-0 overflow-y-auto transition-colors duration-150"
+              data-status={col.status}
+            >
               {colOrders.length === 0 && (
-                <p class="text-xs text-muted-foreground text-center py-6">Sin pedidos</p>
+                <div class="drop-hint flex items-center justify-center h-20 rounded-lg border-2 border-dashed border-border/60">
+                  <p class="text-[11px] text-muted-foreground">Sin pedidos</p>
+                </div>
               )}
               {colOrders.map((o) => (
-                <a
-                  href={`/sale-orders/${o.id}`}
-                  class="block rounded-lg border border-border bg-card p-3.5 hover:border-primary/40 hover:shadow-sm transition-all group"
+                <div
+                  class="kanban-card group rounded-xl border border-border bg-card p-3.5 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-border/80 transition-all duration-150 select-none"
+                  draggable="true"
+                  data-order-id={o.id}
+                  data-status={col.status}
+                  data-search={`${(customerMap[o.customer_id] ?? "").toLowerCase()} ${o.id.toLowerCase()}`}
+                  data-market={o.market ?? ""}
+                  data-currency={o.currency ?? ""}
                 >
-                  <div class="flex items-start justify-between gap-2 mb-2">
-                    <span class="font-mono text-[10px] text-muted-foreground leading-none">{o.id.slice(0, 8)}…</span>
-                    <span class={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${col.badge}`}>
-                      {col.label}
+                  <!-- Card top row -->
+                  <div class="flex items-center justify-between gap-2 mb-2.5">
+                    <span class="font-mono text-[10px] text-muted-foreground leading-none tracking-wider">
+                      #{o.id.slice(0, 8).toUpperCase()}
                     </span>
+                    <div class="flex items-center gap-1">
+                      {o.market && (
+                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" style={`background:${col.accent}15; color:${col.accent};`}>
+                          {marketLabel[o.market] ?? o.market}
+                        </span>
+                      )}
+                      {o.currency && (
+                        <span class="text-[10px] font-mono font-semibold" style={`color:${col.accent};`}>
+                          {currencySymbol[o.currency] ?? o.currency}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <p class="text-sm font-medium leading-snug group-hover:text-primary transition-colors">
-                    {customerMap[o.customer_id] ?? o.customer_id.slice(0, 12)}
+
+                  <!-- Customer -->
+                  <p class="text-[13px] font-semibold leading-snug text-foreground group-hover:text-primary transition-colors truncate">
+                    {customerMap[o.customer_id] ?? o.customer_id?.slice(0, 14) ?? "—"}
                   </p>
-                  <div class="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                    <span>{o.items?.length ?? 0} item{(o.items?.length ?? 0) !== 1 ? "s" : ""}</span>
-                    {o.currency && (
-                      <>
-                        <span>·</span>
-                        <span class="font-mono">{o.currency}</span>
-                      </>
-                    )}
+
+                  <!-- Meta row -->
+                  <div class="flex items-center gap-2 mt-2 text-[11px] text-muted-foreground">
+                    <span class="flex items-center gap-1">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3 shrink-0">
+                        <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 3H8L6 7h12l-2-4z" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      {o.items?.length ?? 0} ítem{(o.items?.length ?? 0) !== 1 ? "s" : ""}
+                    </span>
                     {o.created_at && (
                       <>
-                        <span>·</span>
+                        <span class="text-border">·</span>
                         <span>{o.created_at.slice(0, 10)}</span>
                       </>
                     )}
                   </div>
-                </a>
+
+                  <!-- Drag handle indicator -->
+                  <div class="mt-2.5 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg viewBox="0 0 24 6" fill="currentColor" class="size-4 text-muted-foreground/50">
+                      <circle cx="4" cy="3" r="1.5"/><circle cx="12" cy="3" r="1.5"/><circle cx="20" cy="3" r="1.5"/>
+                    </svg>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         );
       })}
     </div>
-
   </div>
 </AppLayout>
+
+<script is:inline>
+  // ── Column accent colors (matches SSR data) ─────────────────
+  const COLUMN_META = {
+    NEW:        { label: "Nuevo",       accent: "#64748B" },
+    CONFIRMED:  { label: "Confirmado",  accent: "#2563EB" },
+    INVOICED:   { label: "Facturado",   accent: "#B8860B" },
+    DISPATCHED: { label: "Despachado",  accent: "#556B2F" },
+    CANCELLED:  { label: "Cancelado",   accent: "#9B1C1C" },
+  };
+
+  // ── Valid status transitions ──────────────────────────────────
+  const VALID_TRANSITIONS = {
+    NEW:        ["CONFIRMED", "CANCELLED"],
+    CONFIRMED:  ["INVOICED",  "CANCELLED"],
+    INVOICED:   ["DISPATCHED","CANCELLED"],
+    DISPATCHED: [],
+    CANCELLED:  [],
+  };
+
+  // ── Filter state ──────────────────────────────────────────────
+  let activeMarket   = "Todos";
+  let activeCurrency = "Todos";
+  let searchQuery    = "";
+
+  function applyFilters() {
+    const q = searchQuery.toLowerCase();
+    let visibleTotal = 0;
+    const totalCards = document.querySelectorAll(".kanban-card").length;
+
+    document.querySelectorAll(".kanban-card").forEach((card) => {
+      const matchSearch   = !q || (card.dataset.search ?? "").includes(q);
+      const matchMarket   = activeMarket === "Todos"   || card.dataset.market   === activeMarket;
+      const matchCurrency = activeCurrency === "Todos" || card.dataset.currency === activeCurrency;
+      const show = matchSearch && matchMarket && matchCurrency;
+      card.style.display = show ? "" : "none";
+      if (show) visibleTotal++;
+    });
+
+    // Update column badges + per-column "no results" hint
+    document.querySelectorAll(".kanban-column").forEach((col) => {
+      const allCards  = col.querySelectorAll(".kanban-card");
+      const visible   = [...allCards].filter((c) => c.style.display !== "none").length;
+      const badge     = col.querySelector(".kanban-count");
+      if (badge) badge.textContent = visible;
+
+      const zone = col.querySelector(".kanban-drop-zone");
+      if (!zone) return;
+
+      // Remove old filter-empty-hint
+      zone.querySelector(".filter-empty-hint")?.remove();
+
+      // Only show filter-empty-hint when there ARE cards but all are hidden
+      if (allCards.length > 0 && visible === 0) {
+        const hint = document.createElement("div");
+        hint.className = "filter-empty-hint flex items-center justify-center h-16 rounded-lg border-2 border-dashed border-border/40";
+        hint.innerHTML = `<p class="text-[11px] text-muted-foreground italic">Sin resultados</p>`;
+        zone.prepend(hint);
+      }
+    });
+
+    // Header label
+    const totalLabel = document.getElementById("total-label");
+    if (totalLabel) {
+      const isFiltered = q || activeMarket !== "Todos" || activeCurrency !== "Todos";
+      totalLabel.textContent = isFiltered
+        ? `${visibleTotal} de ${totalCards} pedido${totalCards !== 1 ? "s" : ""}`
+        : `${totalCards} pedido${totalCards !== 1 ? "s" : ""} · arrastrá para cambiar estado`;
+    }
+
+    // Clear button
+    const clearBtn = document.getElementById("btn-clear-filters");
+    if (clearBtn) {
+      clearBtn.classList.toggle("hidden", !q && activeMarket === "Todos" && activeCurrency === "Todos");
+    }
+  }
+
+  // ── Pill active style helper ──────────────────────────────────
+  function setActivePill(selector, activeValue, dataKey) {
+    document.querySelectorAll(selector).forEach((btn) => {
+      const isActive = btn.dataset[dataKey] === activeValue;
+      btn.style.background   = isActive ? "#4E070712"              : "transparent";
+      btn.style.color        = isActive ? "#4E0707"                : "var(--color-muted-foreground, #6B7280)";
+      btn.style.borderColor  = isActive ? "#4E070730"              : "var(--color-border, #E5E7EB)";
+    });
+  }
+
+  // ── Toast ────────────────────────────────────────────────────
+  let _toastTimer = null;
+  function showToast(msg, type = "ok") {
+    const el   = document.getElementById("toast");
+    const icon = document.getElementById("toast-icon");
+    const text = document.getElementById("toast-msg");
+    icon.textContent = type === "ok" ? "✓" : "✗";
+    icon.style.color = type === "ok" ? "#556B2F" : "#9B1C1C";
+    text.textContent = msg;
+    el.style.display = "flex";
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { el.style.display = "none"; }, 2800);
+  }
+
+  // ── Drag state ───────────────────────────────────────────────
+  let dragCard    = null;
+  let dragOrderId = null;
+  let dragFrom    = null;
+  let overZone    = null;
+
+  // ── Wire up cards ────────────────────────────────────────────
+  function bindCard(card) {
+    let _dragged = false;
+
+    card.addEventListener("mousedown", () => { _dragged = false; });
+
+    card.addEventListener("dragstart", (e) => {
+      _dragged    = true;
+      dragCard    = card;
+      dragOrderId = card.dataset.orderId;
+      dragFrom    = card.dataset.status;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", dragOrderId);
+      requestAnimationFrame(() => {
+        card.style.opacity = "0.4";
+        card.style.transform = "scale(0.97) rotate(1deg)";
+        const valid = VALID_TRANSITIONS[dragFrom] ?? [];
+        document.querySelectorAll(".kanban-column").forEach((col) => {
+          const s = col.dataset.status;
+          if (s === dragFrom) return;
+          if (!valid.includes(s)) {
+            col.style.opacity = "0.35";
+            col.style.pointerEvents = "none";
+          }
+        });
+      });
+    });
+
+    card.addEventListener("dragend", () => {
+      card.style.opacity = "";
+      card.style.transform = "";
+      document.querySelectorAll(".kanban-column").forEach((col) => {
+        col.style.opacity = "";
+        col.style.pointerEvents = "";
+      });
+      clearZoneHighlights();
+      dragCard = null; dragOrderId = null; dragFrom = null; overZone = null;
+    });
+
+    card.addEventListener("click", () => {
+      if (!_dragged) window.location.href = `/sale-orders/${card.dataset.orderId}`;
+    });
+  }
+
+  // ── Wire up drop zones ───────────────────────────────────────
+  function clearZoneHighlights() {
+    document.querySelectorAll(".kanban-drop-zone").forEach((z) => {
+      z.style.background = "";
+      z.style.outline    = "";
+    });
+  }
+
+  function bindZone(zone) {
+    zone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (overZone !== zone) {
+        clearZoneHighlights();
+        overZone = zone;
+        const meta = COLUMN_META[zone.dataset.status];
+        zone.style.background    = meta ? `${meta.accent}10` : "";
+        zone.style.outline       = meta ? `2px dashed ${meta.accent}50` : "";
+        zone.style.outlineOffset = "-4px";
+        zone.style.borderRadius  = "8px";
+      }
+    });
+
+    zone.addEventListener("dragleave", (e) => {
+      if (!zone.contains(e.relatedTarget)) {
+        zone.style.background = "";
+        zone.style.outline    = "";
+        if (overZone === zone) overZone = null;
+      }
+    });
+
+    zone.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      clearZoneHighlights();
+      const targetStatus = zone.dataset.status;
+      if (!dragOrderId || !targetStatus || targetStatus === dragFrom) return;
+
+      const valid = VALID_TRANSITIONS[dragFrom] ?? [];
+      if (!valid.includes(targetStatus)) {
+        const fromLabel = COLUMN_META[dragFrom]?.label   ?? dragFrom;
+        const toLabel   = COLUMN_META[targetStatus]?.label ?? targetStatus;
+        showToast(`No se puede pasar de "${fromLabel}" a "${toLabel}"`, "err");
+        return;
+      }
+
+      // Optimistic move
+      zone.querySelector(".drop-hint")?.remove();
+      zone.appendChild(dragCard);
+      dragCard.dataset.status = targetStatus;
+      updateCounts();
+
+      try {
+        const res = await fetch(`/api/sale-orders/${dragOrderId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: targetStatus }),
+        });
+        if (!res.ok) {
+          const b = await res.json().catch(() => ({}));
+          throw new Error(b.error ?? `Error ${res.status}`);
+        }
+        showToast(`Movido a ${COLUMN_META[targetStatus]?.label ?? targetStatus}`, "ok");
+      } catch (err) {
+        showToast(err.message ?? "Error al actualizar", "err");
+        const originZone = document.querySelector(`.kanban-drop-zone[data-status="${dragFrom}"]`);
+        if (originZone) {
+          originZone.appendChild(dragCard);
+          dragCard.dataset.status = dragFrom;
+          updateCounts();
+        }
+      }
+    });
+  }
+
+  // ── Count badge update (respects current filter) ─────────────
+  function updateCounts() {
+    document.querySelectorAll(".kanban-column").forEach((col) => {
+      const allCards = col.querySelectorAll(".kanban-card");
+      const n        = allCards.length;
+      const visible  = [...allCards].filter((c) => c.style.display !== "none").length;
+      const badge    = col.querySelector(".kanban-count");
+      if (badge) badge.textContent = visible;
+
+      const zone = col.querySelector(".kanban-drop-zone");
+      if (!zone) return;
+      if (n === 0 && !zone.querySelector(".drop-hint")) {
+        const hint = document.createElement("div");
+        hint.className = "drop-hint flex items-center justify-center h-20 rounded-lg border-2 border-dashed border-border/60";
+        hint.innerHTML = `<p class="text-[11px] text-muted-foreground">Sin pedidos</p>`;
+        zone.prepend(hint);
+      } else if (n > 0) {
+        zone.querySelector(".drop-hint")?.remove();
+      }
+    });
+  }
+
+  // ── Init ─────────────────────────────────────────────────────
+  document.querySelectorAll(".kanban-card").forEach(bindCard);
+  document.querySelectorAll(".kanban-drop-zone").forEach(bindZone);
+
+  // ── Search ───────────────────────────────────────────────────
+  document.getElementById("kanban-search")?.addEventListener("input", (e) => {
+    searchQuery = e.target.value.trim();
+    applyFilters();
+  });
+
+  // ── Market pills ─────────────────────────────────────────────
+  document.querySelectorAll(".filter-market").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeMarket = btn.dataset.market;
+      setActivePill(".filter-market", activeMarket, "market");
+      applyFilters();
+    });
+  });
+
+  // ── Currency pills ────────────────────────────────────────────
+  document.querySelectorAll(".filter-currency").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeCurrency = btn.dataset.currency;
+      setActivePill(".filter-currency", activeCurrency, "currency");
+      applyFilters();
+    });
+  });
+
+  // ── Clear filters ─────────────────────────────────────────────
+  document.getElementById("btn-clear-filters")?.addEventListener("click", () => {
+    searchQuery    = "";
+    activeMarket   = "Todos";
+    activeCurrency = "Todos";
+    const searchEl = document.getElementById("kanban-search");
+    if (searchEl) searchEl.value = "";
+    setActivePill(".filter-market",   "Todos", "market");
+    setActivePill(".filter-currency", "Todos", "currency");
+    applyFilters();
+  });
+</script>
+
+<style>
+  .kanban-card[draggable="true"]:active {
+    cursor: grabbing;
+  }
+</style>

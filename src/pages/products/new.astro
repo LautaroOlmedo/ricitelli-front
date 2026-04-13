@@ -1,5 +1,10 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
+import { getDrySupplies } from "@/lib/grpc/drySupplyClient";
+import { COOKIE_NAME } from "@/lib/auth";
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+const supplies = await getDrySupplies(token).catch(() => []) as any[];
 ---
 
 <AppLayout title="Nuevo Producto">
@@ -63,7 +68,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
 
         <!-- Column headers -->
         <div class="grid grid-cols-[1fr_100px_36px] gap-2.5 px-1">
-          <p class="text-xs font-medium text-muted-foreground">ID Insumo Seco</p>
+          <p class="text-xs font-medium text-muted-foreground">Insumo Seco</p>
           <p class="text-xs font-medium text-muted-foreground text-center">Cant. / unidad</p>
           <span></span>
         </div>
@@ -123,36 +128,35 @@ import AppLayout from "@/layouts/AppLayout.astro";
   </div>
 </AppLayout>
 
-<script>
+<script is:inline define:vars={{ suppliesData: supplies }}>
   // ── BOM row builder ─────────────────────────────────────────
-  let rowIdx = 0;
+  function buildOptions(selectedId = "") {
+    return `<option value="">— Seleccionar insumo —</option>` +
+      suppliesData.map((s) =>
+        `<option value="${s.id}" ${s.id === selectedId ? "selected" : ""}>${s.code} — ${s.name}</option>`
+      ).join("");
+  }
 
   function updateBOMCounter() {
     const count = document.querySelectorAll(".bom-row").length;
-    const badge = document.getElementById("bom-count-badge")!;
-    const hint  = document.getElementById("bom-empty-hint")!;
-    badge.textContent = `${count} ${count === 1 ? "item" : "items"}`;
-    hint.style.display = count === 0 ? "" : "none";
+    const badge = document.getElementById("bom-count-badge");
+    const hint  = document.getElementById("bom-empty-hint");
+    if (badge) badge.textContent = `${count} ${count === 1 ? "item" : "items"}`;
+    if (hint)  hint.style.display = count === 0 ? "" : "none";
   }
 
-  function createBOMRow(): HTMLElement {
-    const i = rowIdx++;
+  function createBOMRow() {
     const row = document.createElement("div");
     row.className = "bom-row grid grid-cols-[1fr_100px_36px] gap-2.5 items-center";
     row.innerHTML = `
-      <input
-        type="text"
-        name="bom_supply_${i}"
-        placeholder="ej: cap-tapas-plata"
-        autocomplete="off"
-        class="rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-      />
+      <select class="bom-supply rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+        ${buildOptions()}
+      </select>
       <input
         type="number"
-        name="bom_qty_${i}"
         min="1"
         value="1"
-        class="rounded-lg border border-input bg-background px-2 py-2 text-sm text-center placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        class="bom-qty rounded-lg border border-input bg-background px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
       />
       <button
         type="button"
@@ -164,34 +168,32 @@ import AppLayout from "@/layouts/AppLayout.astro";
         </svg>
       </button>
     `;
-    row.querySelector(".btn-remove")!.addEventListener("click", () => {
+    row.querySelector(".btn-remove").addEventListener("click", () => {
       row.remove();
       updateBOMCounter();
     });
     return row;
   }
 
-  const bomContainer = document.getElementById("bom-rows")!;
-  document.getElementById("btn-add-bom")!.addEventListener("click", () => {
+  const bomContainer = document.getElementById("bom-rows");
+  document.getElementById("btn-add-bom").addEventListener("click", () => {
     bomContainer.appendChild(createBOMRow());
     updateBOMCounter();
-    // Focus the new supply input
-    const inputs = bomContainer.querySelectorAll<HTMLInputElement>(".bom-row:last-child input");
-    inputs[0]?.focus();
+    bomContainer.querySelector(".bom-row:last-child select")?.focus();
   });
 
   updateBOMCounter();
 
   // ── Form submit ─────────────────────────────────────────────
-  const form       = document.getElementById("product-form")!;
-  const feedback   = document.getElementById("form-feedback")!;
-  const btnSubmit  = document.getElementById("btn-submit") as HTMLButtonElement;
-  const spinner    = document.getElementById("submit-spinner")!;
-  const submitLabel = document.getElementById("submit-label")!;
-  const nameInput  = document.getElementById("product-name") as HTMLInputElement;
-  const nameError  = document.getElementById("name-error")!;
+  const form        = document.getElementById("product-form");
+  const feedback    = document.getElementById("form-feedback");
+  const btnSubmit   = document.getElementById("btn-submit");
+  const spinner     = document.getElementById("submit-spinner");
+  const submitLabel = document.getElementById("submit-label");
+  const nameInput   = document.getElementById("product-name");
+  const nameError   = document.getElementById("name-error");
 
-  function showError(msg: string) {
+  function showError(msg) {
     feedback.className =
       "rounded-lg p-4 text-sm font-medium border border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-2";
     feedback.innerHTML = `
@@ -206,7 +208,7 @@ import AppLayout from "@/layouts/AppLayout.astro";
     feedback.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  function setLoading(on: boolean) {
+  function setLoading(on) {
     btnSubmit.disabled = on;
     spinner.classList.toggle("hidden", !on);
     submitLabel.textContent = on ? "Creando…" : "Crear Producto";
@@ -216,7 +218,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
     e.preventDefault();
     feedback.classList.add("hidden");
 
-    // Client-side validation
     const name = nameInput.value.trim();
     if (!name) {
       nameError.classList.remove("hidden");
@@ -225,31 +226,29 @@ import AppLayout from "@/layouts/AppLayout.astro";
     }
     nameError.classList.add("hidden");
 
-    // Collect BOM
-    const bom: Array<{ dry_supply_id: string; quantity_per_unit: number }> = [];
-    document.querySelectorAll<HTMLElement>(".bom-row").forEach((row) => {
-      const inputs = row.querySelectorAll<HTMLInputElement>("input");
-      const supplyId = inputs[0]?.value.trim();
-      const qty = parseInt(inputs[1]?.value ?? "1", 10);
+    // Collect BOM — read from <select> (dry_supply_id) + qty input
+    const bom = [];
+    document.querySelectorAll(".bom-row").forEach((row) => {
+      const supplyId = row.querySelector(".bom-supply")?.value?.trim();
+      const qty = parseInt(row.querySelector(".bom-qty")?.value ?? "1", 10);
       if (supplyId && qty > 0) {
         bom.push({ dry_supply_id: supplyId, quantity_per_unit: qty });
       }
     });
 
-    setLoading(true);
+    if (bom.length === 0) {
+      showError("Agregá al menos un insumo al BOM antes de guardar.");
+      return;
+    }
 
+    setLoading(true);
     try {
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, bom }),
       });
-
-      if (res.status === 201) {
-        window.location.href = "/products";
-        return;
-      }
-
+      if (res.status === 201) { window.location.href = "/products"; return; }
       const body = await res.json().catch(() => ({}));
       showError(body.error ?? `Error ${res.status} al crear el producto`);
     } catch {
@@ -259,7 +258,6 @@ import AppLayout from "@/layouts/AppLayout.astro";
     }
   });
 
-  // Clear name error on input
   nameInput.addEventListener("input", () => {
     if (nameInput.value.trim()) nameError.classList.add("hidden");
   });

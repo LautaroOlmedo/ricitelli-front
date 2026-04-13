@@ -472,12 +472,34 @@ try {
 
   const drawToolbar = document.getElementById("draw-toolbar")!;
 
+  // Snapshot of form values preserved across the draw session
+  let _savedForm: { name: string; variety: string; status: string; ha: string; age: string } | null = null;
+
+  function saveFormState() {
+    _savedForm = {
+      name:    fName.value,
+      variety: fVariety.value,
+      status:  fStatus.value,
+      ha:      fHa.value,
+      age:     fAge.value,
+    };
+  }
+
+  function restoreFormState() {
+    if (!_savedForm) return;
+    fName.value    = _savedForm.name;
+    fVariety.value = _savedForm.variety;
+    fStatus.value  = _savedForm.status;
+    fHa.value      = _savedForm.ha;
+    fAge.value     = _savedForm.age;
+    _savedForm = null;
+  }
+
   function startDraw() {
     if (!_L) return;
-    // Reset drawing state
+    saveFormState();          // ← preserve whatever the user typed
     drawPoints = [];
     clearDrawLayers();
-    // Hide modal, show toolbar
     hideModal(modal);
     drawToolbar.classList.remove("hidden");
     drawToolbar.classList.add("flex");
@@ -509,6 +531,7 @@ try {
       }
     }
     stopDraw();
+    restoreFormState();
     updatePolyStatus();
     showModal(modal);
   }
