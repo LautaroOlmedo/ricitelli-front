@@ -1,6 +1,6 @@
 ---
 import AppLayout from "@/layouts/AppLayout.astro";
-import { getDrySupplies } from "@/lib/grpc/drySupplyClient";
+import { getDrySupplies, getStockTricapa } from "@/lib/grpc/drySupplyClient";
 import { COOKIE_NAME } from "@/lib/auth";
 import type { DrySupply, StockTricapa } from "@/lib/grpc/types";
 
@@ -12,11 +12,7 @@ let loadError: string | null = null;
 try {
   supplies = await getDrySupplies(token);
   const triCapaResults = await Promise.allSettled(
-    supplies.map(async (s) => {
-      const res = await fetch(`${Astro.url.origin}/api/dry-supplies/${s.id}?tricapa=true`);
-      if (!res.ok) return null;
-      return res.json() as Promise<StockTricapa>;
-    })
+    supplies.map((s) => getStockTricapa(s.id, token))
   );
   triCapaResults.forEach((r, i) => {
     if (r.status === "fulfilled" && r.value) triCapaMap[supplies[i].id] = r.value;
@@ -149,12 +145,13 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
             const tri  = triCapaMap[s.id];
             const meta = categoryMeta[s.category] ?? categoryMeta.OTHER;
             const isLow = tri && tri.available_stock < 500;
-            const availPct = tri && tri.physical_stock > 0
-              ? Math.min(Math.round((tri.available_stock / tri.physical_stock) * 100), 100)
+            const committedPct = tri && tri.physical_stock > 0
+              ? Math.min(Math.round((tri.committed_stock / tri.physical_stock) * 100), 100)
               : 0;
             return (
-              <div
-                class="supply-card group rounded-xl bg-card border border-border overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer"
+              <a
+                href={`/dry-supplies/supply-detail?id=${s.id}`}
+                class={`supply-card group rounded-xl bg-card border overflow-hidden hover:shadow-md transition-all duration-200 flex flex-col cursor-pointer ${isLow ? "border-destructive/40" : "border-border"}`}
                 data-id={s.id}
                 data-cat={s.category}
                 data-search={`${s.code} ${s.name}`.toLowerCase()}>
@@ -176,32 +173,44 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
                   </span>
                   <!-- low stock warning -->
                   {isLow && (
-                    <span class="absolute top-2.5 right-2.5 size-2 rounded-full bg-destructive animate-pulse"/>
+                    <span class="absolute top-2.5 right-2.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider animate-pulse"
+                      style="background:rgba(239,68,68,0.15); color:#EF4444; border:1px solid rgba(239,68,68,0.3);">
+                      Stock bajo
+                    </span>
                   )}
                 </div>
 
                 <!-- Body -->
-                <div class="px-3.5 pt-3 pb-3 flex-1 flex flex-col gap-2">
+                <div class="px-3.5 pt-3 pb-3 flex-1 flex flex-col gap-2"
+                  style={isLow ? "background: linear-gradient(180deg, rgba(239,68,68,0.12) 0%, rgba(239,68,68,0.06) 100%);" : ""}>
                   <div>
                     <p class="font-mono text-[10px] text-muted-foreground">{s.code}</p>
                     <p class="font-semibold text-[13px] leading-snug mt-0.5 line-clamp-2">{s.name}</p>
                   </div>
 
                   {tri ? (
-                    <div class="space-y-1.5 text-[11px] mt-auto">
-                      <div class="flex justify-between text-muted-foreground">
-                        <span>Físico</span>
-                        <span class="font-mono font-medium text-foreground">{tri.physical_stock.toLocaleString("es-AR")}</span>
+                    <div class="space-y-2.5 text-[11px] mt-auto">
+                      <div>
+                        <div class="flex justify-between mb-1">
+                          <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Físico</span>
+                          <span class="text-[12px] font-bold font-mono" style={`color:${meta.color};`}>
+                            {tri.physical_stock.toLocaleString("es-AR")}
+                          </span>
+                        </div>
+                        <div class="h-1.5 rounded-full overflow-hidden" style="background: rgba(0,0,0,0.08);">
+                          <div class="h-full rounded-full" style={`width:100%; background:${meta.color};`}/>
+                        </div>
                       </div>
-                      <div class="flex justify-between text-muted-foreground">
-                        <span>Disponible</span>
-                        <span class="font-mono font-bold" style={`color:${isLow ? "#EF4444" : "#22C55E"};`}>
-                          {tri.available_stock.toLocaleString("es-AR")}
-                        </span>
-                      </div>
-                      <div class="h-1 rounded-full overflow-hidden" style="background:rgba(0,0,0,0.08);">
-                        <div class="h-full rounded-full transition-all"
-                          style={`width:${availPct}%; background:${isLow ? "#EF4444" : meta.color};`}/>
+                      <div>
+                        <div class="flex justify-between mb-1">
+                          <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Comprometido</span>
+                          <span class="text-[12px] font-bold font-mono" style="color:#B8860B;">
+                            {tri.committed_stock.toLocaleString("es-AR")}
+                          </span>
+                        </div>
+                        <div class="h-1.5 rounded-full overflow-hidden" style="background: rgba(0,0,0,0.08);">
+                          <div class="h-full rounded-full" style={`width:${committedPct}%; background:#B8860B;`}/>
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -209,23 +218,24 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
                   )}
                 </div>
 
-                <!-- Footer actions (visible on hover) -->
-                <div class="px-3.5 pb-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <a href={`/dry-supplies/supply-detail?id=${s.id}`}
-                    class="flex-1 text-center text-[11px] font-medium py-1.5 rounded-md border border-border hover:bg-muted/60 transition-colors"
-                    onclick="event.stopPropagation()">
-                    Ver
-                  </a>
-                  <a href={`/dry-supplies/edit?id=${s.id}`}
-                    class="flex-1 text-center text-[11px] font-medium py-1.5 rounded-md border border-border hover:bg-muted/60 transition-colors"
-                    onclick="event.stopPropagation()">
-                    Editar
-                  </a>
+                <!-- Footer action -->
+                <div class="px-3.5 pb-3"
+                  style={isLow ? "background: rgba(239,68,68,0.06);" : ""}>
+                  <button
+                    class="btn-add-stock w-full text-[12px] font-semibold py-1.5 rounded-md border border-border bg-background hover:bg-muted/60 transition-colors"
+                    data-id={s.id}
+                    data-code={s.code}
+                    data-name={s.name}>
+                    Agregar insumo seco
+                  </button>
                 </div>
-              </div>
+              </a>
             );
           })}
         </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-center mt-6 gap-1" id="pagination-container"></div>
 
         <!-- Footer -->
         <div class="mt-6 flex justify-between items-center">
@@ -318,29 +328,76 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
   function showModal(el: HTMLElement) { el.classList.remove("hidden"); el.classList.add("flex"); }
   function hideModal(el: HTMLElement) { el.classList.add("hidden"); el.classList.remove("flex"); }
 
-  // ── Search + category filter ─────────────────────────────
+  // ── Search + category filter + pagination ────────────────
   const searchInput = document.getElementById("search-input") as HTMLInputElement;
   const grid        = document.getElementById("supply-grid")!;
   const badge       = document.getElementById("row-count")!;
   const footer      = document.getElementById("footer-count")!;
+  const paginationContainer = document.getElementById("pagination-container")!;
   let activeCat = "ALL";
+  let currentPage = 1;
+  const PAGE_SIZE = 20;
 
-  function applyFilters() {
+  function applyFilters(resetPage = true) {
+    if (resetPage) currentPage = 1;
     const q = searchInput?.value.trim().toLowerCase() ?? "";
-    const cards = grid.querySelectorAll<HTMLElement>(".supply-card");
-    let visible = 0;
-    cards.forEach((card) => {
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>(".supply-card"));
+    const visibleCards = cards.filter((card) => {
       const matchSearch = !q || (card.dataset.search ?? "").includes(q);
       const matchCat = activeCat === "ALL" || card.dataset.cat === activeCat;
-      card.style.display = matchSearch && matchCat ? "" : "none";
-      if (matchSearch && matchCat) visible++;
+      return matchSearch && matchCat;
     });
-    const label = visible === 1 ? "insumo" : "insumos";
-    badge.textContent = `${visible} ${label}`;
-    footer.textContent = `${visible} ${label}`;
+
+    const total = visibleCards.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = start + PAGE_SIZE;
+
+    cards.forEach((card) => { card.style.display = "none"; });
+    visibleCards.slice(start, end).forEach((card) => { card.style.display = ""; });
+
+    const label = total === 1 ? "insumo" : "insumos";
+    badge.textContent = `${total} ${label}`;
+    footer.textContent = `${total} ${label}`;
+
+    renderPagination(totalPages);
   }
 
-  searchInput?.addEventListener("input", applyFilters);
+  function renderPagination(totalPages: number) {
+    if (totalPages <= 1) { paginationContainer.innerHTML = ""; return; }
+    const WINDOW = 3;
+    const pages: (number | "...")[] = [];
+    pages.push(1);
+    if (currentPage - WINDOW > 2) pages.push("...");
+    for (let i = Math.max(2, currentPage - WINDOW); i <= Math.min(totalPages - 1, currentPage + WINDOW); i++) {
+      pages.push(i);
+    }
+    if (currentPage + WINDOW < totalPages - 1) pages.push("...");
+    if (totalPages > 1) pages.push(totalPages);
+
+    paginationContainer.innerHTML = pages.map((p) => {
+      if (p === "...") return `<span class="px-2 py-1 text-sm text-muted-foreground">...</span>`;
+      const isActive = p === currentPage;
+      const cls = isActive
+        ? "px-3 py-1.5 text-sm font-semibold bg-primary text-primary-foreground rounded-lg"
+        : "px-3 py-1.5 text-sm text-stone-600 border border-border rounded-lg hover:bg-muted/60 cursor-pointer";
+      return `<button class="${cls}" data-page="${p}" ${isActive ? "disabled" : ""}>${p}</button>`;
+    }).join("");
+
+    paginationContainer.querySelectorAll("button[data-page]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const page = Number((btn as HTMLElement).dataset.page);
+        if (page !== currentPage) {
+          currentPage = page;
+          applyFilters(false);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      });
+    });
+  }
+
+  searchInput?.addEventListener("input", () => applyFilters());
 
   document.querySelectorAll<HTMLElement>(".cat-filter").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -355,7 +412,10 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
     });
   });
 
-  // ── Add stock (click card) ───────────────────────────────
+  // Initial pagination render
+  applyFilters();
+
+  // ── Add stock (click "Agregar insumo seco" button) ──────
   let currentSupplyId = "";
   const stockModal  = document.getElementById("modal-add-stock")!;
   const modalName   = document.getElementById("modal-supply-name")!;
@@ -363,11 +423,13 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
   const modalRef    = document.getElementById("modal-reference") as HTMLInputElement;
   const modalError  = document.getElementById("modal-error")!;
 
-  grid.querySelectorAll<HTMLElement>(".supply-card").forEach((card) => {
-    card.addEventListener("click", () => {
-      currentSupplyId = card.dataset.id ?? "";
-      const code = card.querySelector<HTMLElement>(".font-mono")?.textContent?.trim() ?? "";
-      const name = card.querySelectorAll<HTMLElement>(".font-semibold")[0]?.textContent?.trim() ?? "";
+  grid.querySelectorAll<HTMLElement>(".btn-add-stock").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      currentSupplyId = btn.dataset.id ?? "";
+      const code = btn.dataset.code ?? "";
+      const name = btn.dataset.name ?? "";
       modalName.textContent = `${code} — ${name}`;
       modalError.classList.add("hidden");
       modalQty.value = "100"; modalRef.value = "";
