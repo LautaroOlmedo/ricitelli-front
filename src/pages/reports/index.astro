@@ -1,0 +1,269 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Informes">
+  <div class="px-8 py-8 max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-stone-800">Informes</h1>
+        <p class="text-stone-500 mt-1">Generación de reportes PDF de ventas, producción, inventario y trazabilidad</p>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl border border-stone-200 p-5 mb-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Tipo de informe</label>
+          <select id="f-type" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40">
+            <option value="SALES">Ventas</option>
+            <option value="PRODUCTION">Producción</option>
+            <option value="GENERAL">General</option>
+            <option value="LOW_STOCK">Stock bajo</option>
+            <option value="LOT">Trazabilidad de lote</option>
+            <option value="CUSTOMER">Cliente</option>
+          </select>
+        </div>
+        <div data-group="dates">
+          <label class="block text-xs font-medium text-stone-500 mb-1">Desde</label>
+          <input type="datetime-local" id="f-from" min="2006-01-01T00:00" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40" />
+        </div>
+        <div data-group="dates">
+          <label class="block text-xs font-medium text-stone-500 mb-1">Hasta</label>
+          <input type="datetime-local" id="f-to" min="2006-01-01T00:00" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40" />
+        </div>
+        <div data-group="sales">
+          <label class="block text-xs font-medium text-stone-500 mb-1">Mercado</label>
+          <select id="f-market" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm">
+            <option value="">Todos</option>
+            <option value="DOMESTIC">DOMESTIC</option>
+            <option value="EXPORT">EXPORT</option>
+          </select>
+        </div>
+        <div data-group="sales">
+          <label class="block text-xs font-medium text-stone-500 mb-1">Moneda</label>
+          <select id="f-currency" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm">
+            <option value="">Todas</option>
+            <option value="ARS">ARS</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="CAD">CAD</option>
+          </select>
+        </div>
+        <div data-group="customer" class="hidden">
+          <label class="block text-xs font-medium text-stone-500 mb-1">ID del cliente</label>
+          <input type="text" id="f-customer" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm font-mono" placeholder="UUID del cliente" />
+        </div>
+        <div data-group="lot" class="hidden">
+          <label class="block text-xs font-medium text-stone-500 mb-1">Número de lote</label>
+          <input type="text" id="f-lot" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm font-mono" placeholder="L-DDMMYY-NNN-XX" />
+        </div>
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button id="btn-clear" class="px-4 py-2 border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors">Limpiar</button>
+        <button id="btn-generate" class="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">Generar informe</button>
+      </div>
+      <p id="status-msg" class="text-xs text-stone-500 mt-2"></p>
+    </div>
+
+    <!-- Historial -->
+    <div class="bg-white rounded-xl border border-stone-200 overflow-hidden">
+      <div class="px-5 py-3 border-b border-stone-100">
+        <h2 class="text-sm font-semibold text-stone-700">Historial de informes</h2>
+      </div>
+      <table class="w-full text-sm table-fixed">
+        <thead>
+          <tr class="bg-stone-50 text-stone-500 text-xs uppercase tracking-wider">
+            <th class="px-3 py-3 text-left font-medium w-[140px]">Fecha</th>
+            <th class="px-3 py-3 text-left font-medium w-[120px]">Tipo</th>
+            <th class="px-3 py-3 text-left font-medium">Rango</th>
+            <th class="px-3 py-3 text-left font-medium w-[100px]">Tamaño</th>
+            <th class="px-3 py-3 text-right font-medium w-[110px]">Acción</th>
+          </tr>
+        </thead>
+        <tbody id="tbody" class="divide-y divide-stone-100">
+          <tr><td colspan="5" class="px-3 py-8 text-center text-stone-400">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center justify-center mt-4 gap-1" id="pagination"></div>
+  </div>
+</AppLayout>
+
+<script>
+  const PAGE_SIZE = 20;
+  let currentPage = 1;
+  let totalCount = 0;
+
+  const fType = document.getElementById("f-type") as HTMLSelectElement;
+  const fFrom = document.getElementById("f-from") as HTMLInputElement;
+  const fTo = document.getElementById("f-to") as HTMLInputElement;
+  const fMarket = document.getElementById("f-market") as HTMLSelectElement;
+  const fCurrency = document.getElementById("f-currency") as HTMLSelectElement;
+  const fCustomer = document.getElementById("f-customer") as HTMLInputElement;
+  const fLot = document.getElementById("f-lot") as HTMLInputElement;
+  const btnGenerate = document.getElementById("btn-generate")!;
+  const btnClear = document.getElementById("btn-clear")!;
+  const statusMsg = document.getElementById("status-msg")!;
+  const tbody = document.getElementById("tbody")!;
+  const pagination = document.getElementById("pagination")!;
+
+  const typeLabels: Record<string, string> = {
+    SALES: "Ventas",
+    PRODUCTION: "Producción",
+    GENERAL: "General",
+    LOW_STOCK: "Stock bajo",
+    LOT: "Lote",
+    CUSTOMER: "Cliente",
+  };
+
+  function toRFC3339(v: string): string {
+    if (!v) return "";
+    return new Date(v).toISOString();
+  }
+
+  function fmtSize(n: number): string {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function fmtDate(rfc: string): string {
+    if (!rfc) return "-";
+    try {
+      return new Date(rfc).toLocaleString("es-AR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      });
+    } catch { return rfc; }
+  }
+
+  function updateFieldVisibility() {
+    const type = fType.value;
+    const datesVisible = type !== "LOW_STOCK" && type !== "LOT";
+    const salesVisible = type === "SALES";
+    const customerVisible = type === "CUSTOMER";
+    const lotVisible = type === "LOT";
+    document.querySelectorAll<HTMLElement>('[data-group="dates"]').forEach(e => e.classList.toggle("hidden", !datesVisible));
+    document.querySelectorAll<HTMLElement>('[data-group="sales"]').forEach(e => e.classList.toggle("hidden", !salesVisible));
+    document.querySelectorAll<HTMLElement>('[data-group="customer"]').forEach(e => e.classList.toggle("hidden", !customerVisible));
+    document.querySelectorAll<HTMLElement>('[data-group="lot"]').forEach(e => e.classList.toggle("hidden", !lotVisible));
+  }
+
+  async function loadHistory() {
+    tbody.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-stone-400">Cargando...</td></tr>`;
+    try {
+      const res = await fetch(`/api/reports/list?page=${currentPage}&page_size=${PAGE_SIZE}`);
+      if (!res.ok) throw new Error("Error cargando historial");
+      const data = await res.json();
+      totalCount = data.total_count ?? 0;
+      const reports = data.reports ?? [];
+      if (reports.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-stone-400">No hay informes generados aún</td></tr>`;
+      } else {
+        tbody.innerHTML = reports.map((r: any) => {
+          const range = r.from_date && r.to_date
+            ? `${fmtDate(r.from_date)} — ${fmtDate(r.to_date)}`
+            : "—";
+          return `<tr class="hover:bg-stone-50">
+            <td class="px-3 py-2.5 text-xs text-stone-600">${fmtDate(r.generated_at)}</td>
+            <td class="px-3 py-2.5 text-xs"><span class="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 font-medium">${typeLabels[r.type] ?? r.type}</span></td>
+            <td class="px-3 py-2.5 text-xs text-stone-500 truncate">${range}</td>
+            <td class="px-3 py-2.5 text-xs text-stone-500">${fmtSize(r.file_size)}</td>
+            <td class="px-3 py-2.5 text-right">
+              <a href="${r.download_url}" target="_blank" class="text-xs font-medium text-amber-700 hover:text-amber-800">Descargar</a>
+            </td>
+          </tr>`;
+        }).join("");
+      }
+      renderPagination();
+    } catch (e: any) {
+      tbody.innerHTML = `<tr><td colspan="5" class="px-3 py-8 text-center text-red-500">${e.message}</td></tr>`;
+    }
+  }
+
+  function renderPagination() {
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    if (totalPages <= 1) { pagination.innerHTML = ""; return; }
+    const WINDOW = 3;
+    const pages: (number | "...")[] = [];
+    pages.push(1);
+    if (currentPage - WINDOW > 2) pages.push("...");
+    for (let i = Math.max(2, currentPage - WINDOW); i <= Math.min(totalPages - 1, currentPage + WINDOW); i++) pages.push(i);
+    if (currentPage + WINDOW < totalPages - 1) pages.push("...");
+    if (totalPages > 1) pages.push(totalPages);
+
+    pagination.innerHTML = pages.map((p) => {
+      if (p === "...") return `<span class="px-2 py-1 text-sm text-stone-400">...</span>`;
+      const active = p === currentPage;
+      const cls = active
+        ? "px-3 py-1.5 text-sm font-semibold bg-amber-600 text-white rounded-lg"
+        : "px-3 py-1.5 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 cursor-pointer";
+      return `<button class="${cls}" data-page="${p}" ${active ? "disabled" : ""}>${p}</button>`;
+    }).join("");
+
+    pagination.querySelectorAll("button[data-page]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const page = Number((btn as HTMLElement).dataset.page);
+        if (page !== currentPage) { currentPage = page; loadHistory(); }
+      });
+    });
+  }
+
+  async function generate() {
+    statusMsg.textContent = "Generando informe...";
+    statusMsg.className = "text-xs text-stone-500 mt-2";
+    const payload: any = {
+      type: fType.value,
+      from_date: toRFC3339(fFrom.value),
+      to_date: toRFC3339(fTo.value),
+    };
+    if (fType.value === "SALES") {
+      if (fMarket.value) payload.market = fMarket.value;
+      if (fCurrency.value) payload.currency = fCurrency.value;
+    }
+    if (fType.value === "CUSTOMER") {
+      payload.customer_id = fCustomer.value.trim();
+    }
+    if (fType.value === "LOT") {
+      payload.lot_number = fLot.value.trim();
+    }
+    try {
+      const res = await fetch("/api/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        statusMsg.textContent = body.error ?? `Error ${res.status}`;
+        statusMsg.className = "text-xs text-red-500 mt-2";
+        return;
+      }
+      statusMsg.innerHTML = `✓ Generado: <a href="${body.download_url}" target="_blank" class="font-semibold text-amber-700 underline">${body.filename}</a>`;
+      statusMsg.className = "text-xs text-green-700 mt-2";
+      window.open(body.download_url, "_blank");
+      currentPage = 1;
+      loadHistory();
+    } catch (e: any) {
+      statusMsg.textContent = e.message;
+      statusMsg.className = "text-xs text-red-500 mt-2";
+    }
+  }
+
+  fType.addEventListener("change", updateFieldVisibility);
+  btnGenerate.addEventListener("click", generate);
+  btnClear.addEventListener("click", () => {
+    fFrom.value = ""; fTo.value = "";
+    fMarket.value = ""; fCurrency.value = "";
+    fCustomer.value = ""; fLot.value = "";
+    statusMsg.textContent = "";
+  });
+
+  updateFieldVisibility();
+  loadHistory();
+</script>
