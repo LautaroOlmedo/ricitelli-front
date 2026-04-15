@@ -1,7 +1,7 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
 import path from "path";
-import type { InventoryReport, ProductTricapa } from "./types";
+import type { InventoryReport, ProductTricapa, MovementFilter, GetMovementsResponse, MovementEntry } from "./types";
 
 const PROTO_PATH = path.join(process.cwd(), "src/proto/inventory.proto");
 const HOST = process.env.GRPC_PRODUCT_HOST ?? "localhost:50051";
@@ -84,6 +84,24 @@ function mapReport(r: any): InventoryReport {
       available: Number(a.available ?? 0),
       is_low: Boolean(a.is_low),
     })),
+  };
+}
+
+export async function getMovements(filter: MovementFilter, token?: string): Promise<GetMovementsResponse> {
+  const r = await call<any>("GetMovements", filter, token);
+  return {
+    movements: (r.movements ?? []).map((m: any): MovementEntry => ({
+      movement_type: m.movement_type ?? "",
+      quantity: Number(m.quantity ?? 0),
+      reference: m.reference ?? "",
+      stage: m.stage ?? "",
+      lot_number: m.lot_number ?? "",
+      user_id: m.user_id ?? "",
+      created_at: m.created_at ?? "",
+      item_name: m.item_name ?? "",
+      category: m.category ?? "",
+    })),
+    total_count: Number(r.total_count ?? 0),
   };
 }
 

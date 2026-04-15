@@ -1,0 +1,281 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+---
+
+<AppLayout title="Trazabilidad">
+  <div class="px-8 py-8 max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-bold text-stone-800">Trazabilidad de Movimientos</h1>
+        <p class="text-stone-500 mt-1">Historial de agregados de productos e insumos secos</p>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl border border-stone-200 p-5 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Desde</label>
+          <input type="datetime-local" id="filter-from" min="2006-01-01T00:00" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Hasta</label>
+          <input type="datetime-local" id="filter-to" min="2006-01-01T00:00" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Tipo de Movimiento</label>
+          <select id="filter-type" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40">
+            <option value="">Todos</option>
+            <optgroup label="Productos">
+              <option value="PRODUCT_PRODUCED">Producido</option>
+              <option value="PRODUCT_STAGE_IN">Ingreso etapa (vestido)</option>
+              <option value="PRODUCT_STAGE_OUT">Salida etapa (sin vestir)</option>
+              <option value="PRODUCT_RESERVED_FOR_SALE">Reservado para venta</option>
+              <option value="PRODUCT_RESERVATION_RELEASED">Reserva liberada</option>
+              <option value="PRODUCT_DISPATCHED">Despachado</option>
+              <option value="PRODUCT_STOCK_ADJUSTED">Ajuste de stock</option>
+            </optgroup>
+            <optgroup label="Insumos Secos">
+              <option value="DRY_SUPPLY_IN">Ingreso</option>
+              <option value="DRY_SUPPLY_COMMITTED">Comprometido</option>
+              <option value="DRY_SUPPLY_RELEASED">Liberado</option>
+              <option value="DRY_SUPPLY_CONSUMED">Consumido</option>
+              <option value="DRY_SUPPLY_ADJUSTED">Ajuste</option>
+            </optgroup>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-stone-500 mb-1">Categoria</label>
+          <select id="filter-category" class="w-full px-3 py-2 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40">
+            <option value="">Todos</option>
+            <option value="PRODUCT">Productos</option>
+            <option value="DRY_SUPPLY">Insumos Secos</option>
+          </select>
+        </div>
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button id="btn-clear" class="px-4 py-2 border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors">
+          Limpiar filtros
+        </button>
+        <button id="btn-search" class="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors">
+          Buscar
+        </button>
+      </div>
+    </div>
+
+    <!-- Results count -->
+    <div class="mb-4 text-sm text-stone-500">
+      <span id="results-count"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl border border-stone-200 overflow-hidden">
+      <table class="w-full text-sm table-fixed">
+        <thead>
+          <tr class="bg-stone-50 text-stone-500 text-xs uppercase tracking-wider">
+            <th class="px-3 py-3 text-left font-medium w-[130px]">Fecha / Hora</th>
+            <th class="px-3 py-3 text-left font-medium w-[100px]">Usuario</th>
+            <th class="px-3 py-3 text-left font-medium w-[110px]">Tipo</th>
+            <th class="px-3 py-3 text-left font-medium">Item</th>
+            <th class="px-3 py-3 text-left font-medium w-[80px]">Categoria</th>
+            <th class="px-3 py-3 text-right font-medium w-[80px]">Cantidad</th>
+            <th class="px-3 py-3 text-left font-medium w-[80px]">Etapa</th>
+            <th class="px-3 py-3 text-left font-medium w-[120px]">Lote</th>
+            <th class="px-3 py-3 text-left font-medium w-[110px]">Referencia</th>
+          </tr>
+        </thead>
+        <tbody id="movements-tbody" class="divide-y divide-stone-100">
+          <tr>
+            <td colspan="9" class="px-3 py-8 text-center text-stone-400">Haz clic en "Buscar" para ver los movimientos</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center justify-center mt-4 gap-1" id="pagination-container">
+    </div>
+
+  </div>
+</AppLayout>
+
+<script>
+  const PAGE_SIZE = 50;
+  let currentPage = 1;
+  let totalCount = 0;
+
+  const tbody = document.getElementById("movements-tbody")!;
+  const resultsCount = document.getElementById("results-count")!;
+  const paginationContainer = document.getElementById("pagination-container")!;
+  const btnSearch = document.getElementById("btn-search")!;
+  const btnClear = document.getElementById("btn-clear")!;
+
+  const filterFrom = document.getElementById("filter-from") as HTMLInputElement;
+  const filterTo = document.getElementById("filter-to") as HTMLInputElement;
+  const filterType = document.getElementById("filter-type") as HTMLSelectElement;
+  const filterCategory = document.getElementById("filter-category") as HTMLSelectElement;
+
+  const movementTypeLabels: Record<string, string> = {
+    PRODUCT_PRODUCED: "Producido",
+    PRODUCT_STAGE_IN: "Ingreso etapa",
+    PRODUCT_STAGE_OUT: "Salida etapa",
+    PRODUCT_RESERVED_FOR_SALE: "Reservado",
+    PRODUCT_RESERVATION_RELEASED: "Reserva liberada",
+    PRODUCT_DISPATCHED: "Despachado",
+    PRODUCT_STOCK_ADJUSTED: "Ajuste stock",
+    DRY_SUPPLY_IN: "Ingreso",
+    DRY_SUPPLY_COMMITTED: "Comprometido",
+    DRY_SUPPLY_RELEASED: "Liberado",
+    DRY_SUPPLY_CONSUMED: "Consumido",
+    DRY_SUPPLY_ADJUSTED: "Ajuste",
+  };
+
+  function toRFC3339(localDatetime: string): string {
+    if (!localDatetime) return "";
+    return new Date(localDatetime).toISOString();
+  }
+
+  function formatDate(rfc3339: string): string {
+    if (!rfc3339) return "-";
+    const d = new Date(rfc3339);
+    return d.toLocaleString("es-AR", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  }
+
+  async function fetchMovements() {
+    const params = new URLSearchParams();
+    if (filterFrom.value) params.set("from_date", toRFC3339(filterFrom.value));
+    if (filterTo.value) params.set("to_date", toRFC3339(filterTo.value));
+    if (filterType.value) params.set("movement_type", filterType.value);
+    if (filterCategory.value) params.set("category", filterCategory.value);
+
+    params.set("page", String(currentPage));
+    params.set("page_size", String(PAGE_SIZE));
+
+    tbody.innerHTML = `<tr><td colspan="9" class="px-3 py-8 text-center text-stone-400">Cargando...</td></tr>`;
+
+    try {
+      const res = await fetch(`/api/movements?${params}`);
+      if (!res.ok) throw new Error("Error al cargar movimientos");
+      const data = await res.json();
+      totalCount = data.total_count ?? 0;
+      renderMovements(data.movements ?? []);
+      renderPagination();
+    } catch (e: any) {
+      tbody.innerHTML = `<tr><td colspan="9" class="px-3 py-8 text-center text-red-500">${e.message}</td></tr>`;
+    }
+  }
+
+  function renderMovements(movements: any[]) {
+    if (movements.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" class="px-3 py-8 text-center text-stone-400">No se encontraron movimientos</td></tr>`;
+      resultsCount.textContent = "0 resultados";
+      renderPagination();
+      return;
+    }
+
+    resultsCount.textContent = `${totalCount} resultado${totalCount !== 1 ? "s" : ""}`;
+
+    tbody.innerHTML = movements.map((m: any) => {
+      const catBadge = m.category === "PRODUCT"
+        ? `<span class="px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">Producto</span>`
+        : `<span class="px-1.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Insumo</span>`;
+      const typeBadge = movementTypeLabels[m.movement_type] ?? m.movement_type;
+      const stageLabel = m.stage === "DRESSED" ? "Vestido" : m.stage === "UNDRESSED" ? "Sin vestir" : m.stage || "-";
+
+      return `<tr class="hover:bg-stone-50 transition-colors">
+        <td class="px-3 py-2.5 text-stone-600 text-xs">${formatDate(m.created_at)}</td>
+        <td class="px-3 py-2.5 text-stone-700 text-xs truncate" title="${m.user_id || ""}">${m.user_id || "<span class='text-stone-400'>-</span>"}</td>
+        <td class="px-3 py-2.5"><span class="px-1.5 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-700">${typeBadge}</span></td>
+        <td class="px-3 py-2.5 text-stone-800 font-medium text-xs truncate" title="${m.item_name || ""}">${m.item_name || "-"}</td>
+        <td class="px-3 py-2.5">${catBadge}</td>
+        <td class="px-3 py-2.5 text-right font-mono font-semibold text-stone-800 text-xs">${Number(m.quantity).toLocaleString("es-AR")}</td>
+        <td class="px-3 py-2.5 text-stone-500 text-xs">${stageLabel}</td>
+        <td class="px-3 py-2.5 text-stone-500 font-mono text-xs truncate" title="${m.lot_number || ""}">${m.lot_number || "-"}</td>
+        <td class="px-3 py-2.5 text-stone-500 text-xs truncate" title="${m.reference || ""}">${m.reference || "-"}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function renderPagination() {
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+    if (totalPages <= 1) {
+      paginationContainer.innerHTML = "";
+      return;
+    }
+
+    const WINDOW = 3;
+    const pages: (number | "...")[] = [];
+
+    // Always show page 1
+    pages.push(1);
+
+    // Ellipsis before window
+    if (currentPage - WINDOW > 2) {
+      pages.push("...");
+    }
+
+    // Window pages
+    for (let i = Math.max(2, currentPage - WINDOW); i <= Math.min(totalPages - 1, currentPage + WINDOW); i++) {
+      pages.push(i);
+    }
+
+    // Ellipsis after window
+    if (currentPage + WINDOW < totalPages - 1) {
+      pages.push("...");
+    }
+
+    // Always show last page
+    if (totalPages > 1) {
+      pages.push(totalPages);
+    }
+
+    paginationContainer.innerHTML = pages.map((p) => {
+      if (p === "...") {
+        return `<span class="px-2 py-1 text-sm text-stone-400">...</span>`;
+      }
+      const isActive = p === currentPage;
+      const cls = isActive
+        ? "px-3 py-1.5 text-sm font-semibold bg-amber-600 text-white rounded-lg"
+        : "px-3 py-1.5 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50 cursor-pointer";
+      return `<button class="${cls}" data-page="${p}" ${isActive ? "disabled" : ""}>${p}</button>`;
+    }).join("");
+
+    paginationContainer.querySelectorAll("button[data-page]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const page = Number((btn as HTMLElement).dataset.page);
+        if (page !== currentPage) {
+          currentPage = page;
+          fetchMovements();
+        }
+      });
+    });
+  }
+
+  btnSearch.addEventListener("click", () => {
+    currentPage = 1;
+    fetchMovements();
+  });
+
+  btnClear.addEventListener("click", () => {
+    filterFrom.value = "";
+    filterTo.value = "";
+    filterType.value = "";
+    filterCategory.value = "";
+    currentPage = 1;
+    fetchMovements();
+  });
+
+  // Auto-search when any filter changes
+  [filterFrom, filterTo, filterType, filterCategory].forEach((el) => {
+    el.addEventListener("change", () => {
+      currentPage = 1;
+      fetchMovements();
+    });
+  });
+</script>
