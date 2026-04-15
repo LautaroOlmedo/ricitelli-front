@@ -168,3 +168,34 @@ export interface InventoryReport {
   products: ProductTricapa[];
   dry_supply_alerts: DrySupplyAlert[];
 }
+
+// ── Audit / Movements ────────────────────────────────────────────────────
+
+export interface MovementFilter {
+  from_date?: string;
+  to_date?: string;
+  user_id?: string;
+  movement_type?: string;
+  product_id?: string;
+  dry_supply_id?: string;
+  category?: string; // "PRODUCT", "DRY_SUPPLY", or "" for all
+  page?: number;
+  page_size?: number;
+}
+
+export interface MovementEntry {
+  movement_type: string;
+  quantity: number;
+  reference: string;
+  stage: string;
+  lot_number: string;
+  user_id: string;
+  created_at: string;
+  item_name: string;
+  category: string; // "PRODUCT" | "DRY_SUPPLY"
+}
+
+export interface GetMovementsResponse {
+  movements: MovementEntry[];
+  total_count: number;
+}
