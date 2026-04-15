@@ -166,12 +166,86 @@ try {
             class="rounded-md border border-input bg-background px-3 py-1.5 text-[11px] font-medium hover:bg-muted/60 transition-colors">Cancelar</button>
         </div>
       </div>
+
+      <!-- ── AI assistant floating button ─────────────────────── -->
+      <button id="btn-open-ai"
+        class="absolute bottom-6 right-4 z-1000 flex items-center gap-2 rounded-xl bg-card border border-border shadow-lg px-3.5 py-2 text-[12px] font-semibold hover:bg-muted/60 hover:shadow-xl transition-all">
+        <span class="size-2 rounded-full bg-primary shrink-0 animate-pulse"></span>
+        Asistente IA
+      </button>
     </div>
+
+    <!-- ── AI chat panel ─────────────────────────────────────────── -->
+    <aside id="ai-panel" class="hidden w-80 shrink-0 border-l border-border bg-card flex-col overflow-hidden">
+
+      <!-- Panel header -->
+      <div class="px-4 py-3 border-b border-border flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="size-2 rounded-full bg-primary shrink-0 animate-pulse"></span>
+          <span class="text-sm font-semibold">Asistente de Viñedo</span>
+        </div>
+        <button id="btn-close-ai"
+          class="size-7 rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground flex items-center justify-center transition-colors text-sm">
+          ✕
+        </button>
+      </div>
+
+      <!-- Messages area -->
+      <div id="ai-messages" class="flex-1 overflow-y-auto p-4">
+
+        <!-- Empty / welcome state -->
+        <div id="ai-empty" class="flex flex-col items-center text-center gap-3 pt-6 pb-2">
+          <div class="size-14 rounded-2xl flex items-center justify-center text-2xl" style="background:#c9644215;">🍇</div>
+          <div>
+            <p class="text-sm font-semibold">Preguntame sobre las fincas</p>
+            <p class="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+              Cruzo datos de NDVI, humedad y maduración para recomendarte las mejores parcelas para cada vino.
+            </p>
+          </div>
+          <div class="w-full space-y-1.5 mt-1">
+            <button class="ai-suggestion w-full text-left rounded-lg border border-border px-3 py-2 text-[11px] text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-primary/30 transition-colors leading-relaxed">
+              ¿Qué parcelas recomendás para el próximo lote de Old Vines From Patagonia?
+            </button>
+            <button class="ai-suggestion w-full text-left rounded-lg border border-border px-3 py-2 text-[11px] text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-primary/30 transition-colors leading-relaxed">
+              ¿Cuáles tienen la mejor maduración hoy?
+            </button>
+            <button class="ai-suggestion w-full text-left rounded-lg border border-border px-3 py-2 text-[11px] text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-primary/30 transition-colors leading-relaxed">
+              ¿Hay alguna parcela en estado crítico que necesite atención?
+            </button>
+            <button class="ai-suggestion w-full text-left rounded-lg border border-border px-3 py-2 text-[11px] text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-primary/30 transition-colors leading-relaxed">
+              Comparame las parcelas de Malbec por nivel de maduración.
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input area -->
+      <div class="p-3 border-t border-border shrink-0">
+        <div class="flex gap-2 items-end">
+          <textarea
+            id="ai-input"
+            rows="2"
+            placeholder="¿Qué parcelas para el próximo Malbec?"
+            class="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-[12px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          ></textarea>
+          <button
+            id="ai-send"
+            class="size-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shrink-0 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <p class="text-[10px] text-muted-foreground mt-1.5">Cmd+Enter para enviar · indicadores simulados</p>
+      </div>
+    </aside>
+
   </div>
 </AppLayout>
 
 <!-- ── Plot form modal ─────────────────────────────────────── -->
-<div id="modal-plot" class="hidden fixed inset-0 z-[2000] items-center justify-center bg-black/40 backdrop-blur-sm">
+<div id="modal-plot" class="hidden fixed inset-0 z-2000 items-center justify-center bg-black/40 backdrop-blur-sm">
   <div class="bg-card border border-border rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
     <h2 id="modal-title" class="text-base font-semibold mb-4">Nueva Parcela</h2>
     <div class="grid grid-cols-2 gap-3">
@@ -252,6 +326,10 @@ try {
   let selectedPlotId: string | null = null;
   let editingPlotId: string | null = null;
   let heatmapMode = false;
+
+  // AI highlight state
+  let aiHighlightedIds: string[] = [];
+  let _glowInterval: ReturnType<typeof setInterval> | null = null;
 
   // Draw state
   let drawActive = false;       // true while user is clicking vertices
@@ -348,9 +426,15 @@ try {
 
   function updateStyles() {
     polygonLayers.forEach(({ layer, plot }) => {
-      const sel = plot.id === selectedPlotId;
+      const sel  = plot.id === selectedPlotId;
+      const glow = aiHighlightedIds.includes(plot.id);
       const fill = plotFill(plot);
-      layer.setStyle({ fillColor: fill, fillOpacity: sel ? 0.75 : 0.45, color: sel ? "#F5F0EB" : fill, weight: sel ? 2.5 : 1.5 });
+      if (glow) {
+        layer.setStyle({ fillColor: "#c96442", fillOpacity: 0.60, color: "#c96442", weight: 3, opacity: 1 });
+        layer.bringToFront();
+      } else {
+        layer.setStyle({ fillColor: fill, fillOpacity: sel ? 0.75 : 0.45, color: sel ? "#f5f4ed" : fill, weight: sel ? 2.5 : 1.5, opacity: 0.9 });
+      }
     });
   }
 
@@ -644,10 +728,197 @@ try {
 
   document.getElementById("zoom-in")!.addEventListener("click",  () => map?.zoomIn());
   document.getElementById("zoom-out")!.addEventListener("click", () => map?.zoomOut());
+
+  // ─── AI chat panel ───────────────────────────────────────────
+  let aiHistory: { role: string; content: string }[] = [];
+
+  // Highlight polygons with a pulsing glow
+  function highlightPlots(ids: string[]) {
+    if (_glowInterval) { clearInterval(_glowInterval); _glowInterval = null; }
+    aiHighlightedIds = ids;
+    updateStyles();
+
+    if (!ids.length) return;
+
+    // Smooth pulse animation on highlighted polygons
+    let tick = 0;
+    _glowInterval = setInterval(() => {
+      tick++;
+      const opacity = 0.55 + Math.sin(tick * 0.12) * 0.15;
+      const weight  = 2.5  + Math.sin(tick * 0.12) * 0.6;
+      polygonLayers.forEach(({ layer, plot }) => {
+        if (aiHighlightedIds.includes(plot.id)) {
+          layer.setStyle({ fillOpacity: opacity, weight });
+        }
+      });
+    }, 50);
+
+    // Fit map to highlighted plots
+    if (_L) {
+      const layers = ids
+        .map((id) => polygonLayers.find(({ plot }) => plot.id === id)?.layer)
+        .filter(Boolean);
+      if (layers.length) map.fitBounds(_L.featureGroup(layers).getBounds().pad(0.3));
+    }
+  }
+
+  // Append a message bubble to the chat
+  function appendMessage(role: "user" | "assistant", text: string) {
+    const container = document.getElementById("ai-messages")!;
+    document.getElementById("ai-empty")?.remove();
+    const wrap   = document.createElement("div");
+    wrap.className = role === "user" ? "flex justify-end mb-3" : "flex justify-start mb-3";
+    const bubble = document.createElement("div");
+    bubble.className = role === "user"
+      ? "max-w-[85%] rounded-2xl rounded-tr-sm px-3 py-2 text-[12px] leading-relaxed text-primary-foreground"
+      : "max-w-[90%] rounded-2xl rounded-tl-sm px-3 py-2 text-[12px] leading-relaxed text-foreground";
+    bubble.style.background = role === "user" ? "var(--primary)" : "var(--muted)";
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  // Typing indicator
+  function appendThinking() {
+    const container = document.getElementById("ai-messages")!;
+    const wrap = document.createElement("div");
+    wrap.id = "ai-thinking";
+    wrap.className = "flex justify-start mb-3";
+    wrap.innerHTML = `
+      <div class="rounded-2xl rounded-tl-sm px-3 py-2.5 flex items-center gap-1.5" style="background:var(--muted);">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--muted-foreground);opacity:0.5;display:inline-block;animation:bounce 1.2s 0s infinite;"></span>
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--muted-foreground);opacity:0.5;display:inline-block;animation:bounce 1.2s 0.2s infinite;"></span>
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--muted-foreground);opacity:0.5;display:inline-block;animation:bounce 1.2s 0.4s infinite;"></span>
+      </div>`;
+    container.appendChild(wrap);
+    container.scrollTop = container.scrollHeight;
+  }
+
+  // Banner showing which plots are lit on the map
+  function appendHighlightBanner(ids: string[]) {
+    const container = document.getElementById("ai-messages")!;
+    const existing  = container.querySelector(".ai-highlight-banner");
+    existing?.remove();
+
+    if (!ids.length) return;
+    const names = ids
+      .map((id) => _plots.find((p) => p.id === id)?.name ?? id.slice(0, 8))
+      .join(", ");
+    const banner = document.createElement("div");
+    banner.className = "ai-highlight-banner flex items-center gap-2 rounded-lg px-3 py-2 mb-3 text-[11px] border";
+    banner.style.cssText = "border-color:#c9644230;background:#c9644210;";
+    banner.innerHTML = `
+      <span style="width:7px;height:7px;border-radius:50%;background:#c96442;flex-shrink:0;animation:pulse 2s infinite;"></span>
+      <span style="color:#c96442;font-weight:600;">Iluminadas:</span>
+      <span style="color:var(--muted-foreground);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${names}</span>
+      <button id="btn-clear-hl" style="color:var(--muted-foreground);font-size:10px;flex-shrink:0;cursor:pointer;">Limpiar</button>`;
+    container.appendChild(banner);
+    container.scrollTop = container.scrollHeight;
+    document.getElementById("btn-clear-hl")?.addEventListener("click", () => {
+      highlightPlots([]);
+      banner.remove();
+    });
+  }
+
+  // Send a message to the vineyard AI
+  async function sendAIMessage(text: string) {
+    const msg = text.trim();
+    if (!msg) return;
+
+    const sendBtn = document.getElementById("ai-send") as HTMLButtonElement;
+    const inputEl = document.getElementById("ai-input") as HTMLTextAreaElement;
+    sendBtn.disabled = true;
+    inputEl.value = "";
+
+    appendMessage("user", msg);
+    appendThinking();
+
+    try {
+      const res = await fetch("/api/maps/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: msg,
+          plots:   _plots.map(({ id, name, variety, ha, age, status }) => ({ id, name, variety, ha, age, status })),
+          history: aiHistory,
+        }),
+      });
+
+      document.getElementById("ai-thinking")?.remove();
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        appendMessage("assistant", err.error ?? `Error ${res.status} al consultar el asistente.`);
+        return;
+      }
+
+      const data = await res.json();
+      appendMessage("assistant", data.message);
+      aiHistory = data.history ?? aiHistory;
+
+      if (data.highlight_plots?.length) {
+        highlightPlots(data.highlight_plots);
+        appendHighlightBanner(data.highlight_plots);
+      }
+    } catch {
+      document.getElementById("ai-thinking")?.remove();
+      appendMessage("assistant", "No pude conectarme con el asistente. Verificá que el servidor esté disponible.");
+    } finally {
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+  }
+
+  // ── Panel toggle ─────────────────────────────────────────────
+  const aiPanel = document.getElementById("ai-panel")!;
+
+  function openAIPanel() {
+    aiPanel.classList.remove("hidden");
+    aiPanel.classList.add("flex");
+    document.getElementById("ai-input")?.focus();
+  }
+  function closeAIPanel() {
+    aiPanel.classList.add("hidden");
+    aiPanel.classList.remove("flex");
+  }
+
+  document.getElementById("btn-open-ai")!.addEventListener("click",  openAIPanel);
+  document.getElementById("btn-close-ai")!.addEventListener("click", closeAIPanel);
+
+  // ── Send button & keyboard shortcut ─────────────────────────
+  document.getElementById("ai-send")!.addEventListener("click", () => {
+    sendAIMessage((document.getElementById("ai-input") as HTMLTextAreaElement).value);
+  });
+
+  document.getElementById("ai-input")!.addEventListener("keydown", (e: Event) => {
+    const ke = e as KeyboardEvent;
+    if ((ke.ctrlKey || ke.metaKey) && ke.key === "Enter") {
+      ke.preventDefault();
+      sendAIMessage((ke.target as HTMLTextAreaElement).value);
+    }
+  });
+
+  // ── Quick suggestion buttons ─────────────────────────────────
+  document.querySelectorAll<HTMLElement>(".ai-suggestion").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openAIPanel();
+      sendAIMessage(btn.textContent?.trim() ?? "");
+    });
+  });
 </script>
 
 <style>
   .leaflet-container { background: #1A2E1A; font-family: Inter, sans-serif; }
   .leaflet-control-attribution { font-size: 9px; opacity: 0.5; background: transparent !important; color: #fff !important; }
   .leaflet-control-attribution a { color: #fff !important; }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40%            { transform: translateY(-5px); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.4; }
+  }
 </style>

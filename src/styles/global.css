@@ -2,173 +2,211 @@
 @plugin "@tailwindcss/forms";
 
 @theme {
-  /* Typography */
-  --font-sans: Inter, sans-serif;
-  --font-display: 'Playfair Display', serif;
-  --font-mono: Geist Mono, monospace;
+  /* ── Typography ─────────────────────────────────────────────
+     Anthropic Serif → Playfair Display (editorial, weight 500 only)
+     Anthropic Sans  → Inter (clean UI utility)
+     Anthropic Mono  → Geist Mono (code only)
+  ─────────────────────────────────────────────────────────── */
+  --font-sans:    Inter, system-ui, -apple-system, sans-serif;
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-mono:    'Geist Mono', 'Courier New', monospace;
 
-  /* Border Radius — VGM scale */
-  --radius-xs: calc(var(--radius) - 6px);   /* 4px  — inline tags, lab pills */
-  --radius-sm: calc(var(--radius) - 4px);   /* 6px  — compact buttons, chips */
-  --radius-md: calc(var(--radius) - 2px);   /* 8px  — nav items, inputs, CTA buttons */
-  --radius-lg: var(--radius);               /* 10px — tank/barrel card surfaces */
-  --radius-xl: calc(var(--radius) + 2px);   /* 12px — primary section cards */
-  --radius-2xl: calc(var(--radius) + 10px); /* 20px — status pill badges */
+  /* ── Border Radius ──────────────────────────────────────────
+     Follows the Claude/Anthropic scale — soft and approachable.
+     No sharp corners on interactive elements (minimum 6px).
+  ─────────────────────────────────────────────────────────── */
+  --radius-xs:  4px;   /* Minimal inline tags */
+  --radius-sm:  6px;   /* Small secondary elements */
+  --radius-md:  8px;   /* Standard buttons, cards */
+  --radius-lg:  12px;  /* Primary buttons, inputs, nav */
+  --radius-xl:  16px;  /* Featured containers, video */
+  --radius-2xl: 24px;  /* Tag-like, highlighted containers */
+  --radius-3xl: 32px;  /* Hero containers, large cards */
   --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  /* ── Shadows ────────────────────────────────────────────────
+     Warm-toned ring shadows rather than drop shadows.
+     Depth comes from ring halos + surface color shifts.
+  ─────────────────────────────────────────────────────────── */
+  --shadow-ring:    0px 0px 0px 1px #d1cfc5;       /* Button ring hover */
+  --shadow-sm:      rgba(0,0,0,0.04) 0px 2px 8px;  /* Subtle lift */
+  --shadow-md:      rgba(0,0,0,0.05) 0px 4px 24px; /* Whisper — feature cards */
+  --shadow-lg:      rgba(0,0,0,0.07) 0px 8px 40px; /* Elevated modals */
 }
 
 @theme inline {
-  /* Semantic Colors */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
-  --color-info: var(--info);
-  --color-info-foreground: var(--info-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-
-  /* Sidebar Colors */
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
+  /* Semantic color bridge → CSS custom properties */
+  --color-background:              var(--background);
+  --color-foreground:              var(--foreground);
+  --color-card:                    var(--card);
+  --color-card-foreground:         var(--card-foreground);
+  --color-popover:                 var(--popover);
+  --color-popover-foreground:      var(--popover-foreground);
+  --color-primary:                 var(--primary);
+  --color-primary-foreground:      var(--primary-foreground);
+  --color-secondary:               var(--secondary);
+  --color-secondary-foreground:    var(--secondary-foreground);
+  --color-muted:                   var(--muted);
+  --color-muted-foreground:        var(--muted-foreground);
+  --color-accent:                  var(--accent);
+  --color-accent-foreground:       var(--accent-foreground);
+  --color-destructive:             var(--destructive);
+  --color-destructive-foreground:  var(--destructive-foreground);
+  --color-success:                 var(--success);
+  --color-success-foreground:      var(--success-foreground);
+  --color-warning:                 var(--warning);
+  --color-warning-foreground:      var(--warning-foreground);
+  --color-info:                    var(--info);
+  --color-info-foreground:         var(--info-foreground);
+  --color-border:                  var(--border);
+  --color-input:                   var(--input);
+  --color-ring:                    var(--ring);
+  --color-chart-1:                 var(--chart-1);
+  --color-chart-2:                 var(--chart-2);
+  --color-chart-3:                 var(--chart-3);
+  --color-chart-4:                 var(--chart-4);
+  --color-chart-5:                 var(--chart-5);
+  --color-sidebar:                 var(--sidebar);
+  --color-sidebar-foreground:      var(--sidebar-foreground);
+  --color-sidebar-primary:         var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent:          var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border:          var(--sidebar-border);
+  --color-sidebar-ring:            var(--sidebar-ring);
 }
 
+/* ── Light Theme ────────────────────────────────────────────── */
 :root {
-  --radius: 0.625rem; /* 10px base */
+  /* ── Canvas & Surfaces ──────────────────────────────────────
+     Parchment (#f5f4ed) is the emotional foundation —
+     warm cream that evokes quality paper, not a screen.
+  ─────────────────────────────────────────────────────────── */
+  --background:          #f5f4ed;  /* Parchment — primary canvas */
+  --foreground:          #141413;  /* Near Black — warm, barely olive */
+  --card:                #faf9f5;  /* Ivory — cards on parchment */
+  --card-foreground:     #5e5d59;  /* Olive Gray — body text */
+  --popover:             #faf9f5;
+  --popover-foreground:  #141413;
 
-  /* ── Backgrounds ──────────────────────────────── */
-  --background: #F5F0EB;        /* Warm cream — main canvas */
-  --foreground: #1A0A0A;        /* Primary Text — headings, values */
-  --card: #FFFFFF;              /* Card / Topbar surface */
-  --card-foreground: #4A3728;   /* Body Text */
-  --popover: #FFFFFF;
-  --popover-foreground: #1A0A0A;
+  /* ── Brand — Terracotta ─────────────────────────────────────
+     Warm earthy CTA — the only chromatic color on light surfaces.
+     Deliberately un-tech: burnt orange-brown.
+  ─────────────────────────────────────────────────────────── */
+  --primary:             #c96442;  /* Terracotta Brand */
+  --primary-foreground:  #faf9f5;  /* Ivory text on terracotta */
 
-  /* ── Brand Primary — Burgundy ─────────────────── */
-  --primary: #4E0707;           /* CTA buttons, active states, sidebar headers */
-  --primary-foreground: #F5F0EB;
+  /* ── Secondary — Warm Sand ──────────────────────────────────
+     Workhorse secondary surface — warm, unassuming, clearly interactive.
+  ─────────────────────────────────────────────────────────── */
+  --secondary:           #e8e6dc;  /* Warm Sand */
+  --secondary-foreground:#4d4c48;  /* Charcoal Warm */
 
-  /* ── Secondary — Olive Green ──────────────────── */
-  --secondary: #556B2F;         /* Secondary brand, progress accents */
-  --secondary-foreground: #F5F0EB;
+  /* ── Muted ──────────────────────────────────────────────────
+     Cream-tinted surfaces for inactive areas and metadata.
+  ─────────────────────────────────────────────────────────── */
+  --muted:               #f0eee6;  /* Border Cream as background */
+  --muted-foreground:    #87867f;  /* Stone Gray — tertiary text */
 
-  /* ── Muted ────────────────────────────────────── */
-  --muted: #FAFAF8;             /* Card Alt */
-  --muted-foreground: #8B7355;  /* Labels, nav inactive, subtitles */
+  /* ── Accent — Coral ─────────────────────────────────────────
+     Lighter terracotta variant for links on dark, secondary emphasis.
+  ─────────────────────────────────────────────────────────── */
+  --accent:              #d97757;  /* Coral Accent */
+  --accent-foreground:   #faf9f5;
 
-  /* ── Accent — Dark Gold ───────────────────────── */
-  --accent: #B8860B;            /* Active nav items, in-progress badges */
-  --accent-foreground: #F5F0EB;
+  /* ── Semantic / Status ──────────────────────────────────────
+     All status colors use warm-toned variants.
+     Info/Focus Blue (#3898ec) is the ONLY cool color — accessibility only.
+  ─────────────────────────────────────────────────────────── */
+  --destructive:         #b53333;  /* Error Crimson — warm deep red */
+  --destructive-foreground: #faf9f5;
+  --success:             #3d6b35;  /* Olive success — warm green */
+  --success-foreground:  #faf9f5;
+  --warning:             #8a6b1a;  /* Warm amber-gold */
+  --warning-foreground:  #faf9f5;
+  --info:                #3898ec;  /* Focus Blue — only cool color */
+  --info-foreground:     #ffffff;
 
-  /* ── Semantic / Status ────────────────────────── */
-  --destructive: #EF4444;       /* Alert Red — critical, danger */
-  --destructive-foreground: #FFFFFF;
-  --success: #22C55E;           /* Completed steps, optimal heatmap */
-  --success-foreground: #FFFFFF;
-  --warning: #F59E0B;           /* Warning Amber — low moisture */
-  --warning-foreground: #FFFFFF;
-  --info: #3B82F6;              /* Info Blue — IoT moisture, humidity */
-  --info-foreground: #FFFFFF;
+  /* ── Borders & Inputs ───────────────────────────────────────
+     Cream-tinted borders: barely visible on light surfaces.
+     Ring uses Focus Blue for accessibility.
+  ─────────────────────────────────────────────────────────── */
+  --border:              #f0eee6;  /* Border Cream — standard light border */
+  --input:               #e8e6dc;  /* Border Warm — form inputs */
+  --ring:                #3898ec;  /* Focus Blue — input focus ring */
 
-  /* ── Borders ──────────────────────────────────── */
-  --border: #E8DDD4;            /* Card stroke */
-  --input: #E8DDD4;
-  --ring: #4E0707;              /* Focus ring */
+  /* ── Charts ─────────────────────────────────────────────────
+     Warm palette: terracotta-led, no cool blues except info.
+  ─────────────────────────────────────────────────────────── */
+  --chart-1: #c96442;  /* Terracotta */
+  --chart-2: #556b2f;  /* Olive */
+  --chart-3: #8a6b1a;  /* Warm Gold */
+  --chart-4: #3898ec;  /* Blue (info only) */
+  --chart-5: #87867f;  /* Stone */
 
-  /* ── Charts ───────────────────────────────────── */
-  --chart-1: #4E0707;           /* Primary Burgundy */
-  --chart-2: #556B2F;           /* Olive Green */
-  --chart-3: #B8860B;           /* Dark Gold */
-  --chart-4: #3B82F6;           /* Info Blue */
-  --chart-5: #A855F7;           /* Purple */
-
-  /* ── Sidebar — dark wine ──────────────────────── */
-  --sidebar: #1C0808;           /* Primary Dark — sidebar background */
-  --sidebar-foreground: #F5F0EB;
-  --sidebar-primary: #4E0707;   /* Sidebar headers, batch search bar */
-  --sidebar-primary-foreground: #F5F0EB;
-  --sidebar-accent: #3D0A0A;    /* Active nav item background */
-  --sidebar-accent-foreground: #F5F0EB;
-  --sidebar-border: #2E0A0A;    /* Sidebar dividers */
-  --sidebar-ring: #4E0707;
+  /* ── Sidebar — Near Black ───────────────────────────────────
+     Deep dark (#141413) with warm charcoal accents.
+     Warm-tinted blacks — no cold charcoals.
+  ─────────────────────────────────────────────────────────── */
+  --sidebar:                        #141413;  /* Near Black */
+  --sidebar-foreground:             #faf9f5;  /* Ivory */
+  --sidebar-primary:                #c96442;  /* Terracotta — logo badge, highlights */
+  --sidebar-primary-foreground:     #faf9f5;
+  --sidebar-accent:                 #30302e;  /* Dark Surface — active nav bg */
+  --sidebar-accent-foreground:      #faf9f5;
+  --sidebar-border:                 #30302e;  /* Dark Surface — dividers */
+  --sidebar-ring:                   #3898ec;
 }
 
+/* ── Dark Theme ─────────────────────────────────────────────── */
 .dark {
-  --background: #1C0808;
-  --foreground: #F5F0EB;
-  --card: #2E0A0A;
-  --card-foreground: #F5F0EB;
-  --popover: #2E0A0A;
-  --popover-foreground: #F5F0EB;
-  --primary: #7A1010;
-  --primary-foreground: #F5F0EB;
-  --secondary: #6B8840;
-  --secondary-foreground: #F5F0EB;
-  --muted: #3D0A0A;
-  --muted-foreground: #C4A882;
-  --accent: #C9970D;
-  --accent-foreground: #1C0808;
-  --destructive: #DC2626;
-  --destructive-foreground: #F5F0EB;
-  --success: #16A34A;
-  --success-foreground: #F5F0EB;
-  --warning: #D97706;
-  --warning-foreground: #F5F0EB;
-  --info: #2563EB;
-  --info-foreground: #F5F0EB;
-  --border: #4A1515;
-  --input: #4A1515;
-  --ring: #7A1010;
-  --chart-1: #C0392B;
-  --chart-2: #6B8840;
-  --chart-3: #C9970D;
-  --chart-4: #60A5FA;
-  --chart-5: #C084FC;
+  --background:          #141413;  /* Near Black */
+  --foreground:          #faf9f5;  /* Ivory */
+  --card:                #30302e;  /* Dark Surface */
+  --card-foreground:     #faf9f5;
+  --popover:             #30302e;
+  --popover-foreground:  #faf9f5;
+  --primary:             #d97757;  /* Coral — lighter terracotta for dark */
+  --primary-foreground:  #141413;
+  --secondary:           #3d3d3a;  /* Dark Warm */
+  --secondary-foreground:#b0aea5;  /* Warm Silver */
+  --muted:               #30302e;
+  --muted-foreground:    #87867f;  /* Stone Gray */
+  --accent:              #c96442;  /* Terracotta */
+  --accent-foreground:   #faf9f5;
+  --destructive:         #b53333;
+  --destructive-foreground: #faf9f5;
+  --success:             #3d6b35;
+  --success-foreground:  #faf9f5;
+  --warning:             #8a6b1a;
+  --warning-foreground:  #faf9f5;
+  --info:                #3898ec;
+  --info-foreground:     #ffffff;
+  --border:              #30302e;
+  --input:               #3d3d3a;
+  --ring:                #3898ec;
+  --chart-1: #d97757;
+  --chart-2: #6b8840;
+  --chart-3: #c9970d;
+  --chart-4: #60a5fa;
+  --chart-5: #b0aea5;
 
-  --sidebar: #0F0404;
-  --sidebar-foreground: #F5F0EB;
-  --sidebar-primary: #7A1010;
-  --sidebar-primary-foreground: #F5F0EB;
-  --sidebar-accent: #2E0A0A;
-  --sidebar-accent-foreground: #F5F0EB;
-  --sidebar-border: #1C0808;
-  --sidebar-ring: #7A1010;
+  --sidebar:                        #0f0f0e;
+  --sidebar-foreground:             #faf9f5;
+  --sidebar-primary:                #c96442;
+  --sidebar-primary-foreground:     #faf9f5;
+  --sidebar-accent:                 #30302e;
+  --sidebar-accent-foreground:      #faf9f5;
+  --sidebar-border:                 #30302e;
+  --sidebar-ring:                   #3898ec;
 }
 
-/* Base styles */
+/* ── Base resets ────────────────────────────────────────────── */
 * {
   border-color: var(--border);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

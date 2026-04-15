@@ -60,6 +60,26 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
       </button>
     </div>
 
+    <!-- ── Prediction banner ─────────────────────────────── -->
+    {lowStockCount > 0 && (
+      <a href="/inventory/predictions"
+        class="flex items-center gap-3 rounded-xl border px-5 py-3.5 mb-6 group hover:shadow-md transition-all"
+        style="border-color:#b5333330;background:#b5333308;">
+        <span class="size-8 rounded-lg flex items-center justify-center shrink-0 text-sm" style="background:#b5333320;">⚠️</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold" style="color:#b53333;">
+            {lowStockCount} insumo{lowStockCount !== 1 ? "s" : ""} con stock bajo
+          </p>
+          <p class="text-xs text-muted-foreground mt-0.5">
+            Ver predicción de faltantes cruzada con pedidos activos →
+          </p>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 text-muted-foreground group-hover:text-foreground shrink-0 transition-colors">
+          <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    )}
+
     <!-- ── Stats ────────────────────────────────────────── -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
       {([
