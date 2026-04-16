@@ -10,6 +10,11 @@ const pathname = new URL(Astro.request.url).pathname;
 
 const nav = [
   {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><rect x="3" y="3" width="7" height="9" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="14" y="3" width="7" height="5" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="14" y="12" width="7" height="9" rx="1" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="16" width="7" height="5" rx="1" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  },
+  {
     href: "/products",
     label: "Productos",
     icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 3H8L6 7h12l-2-4z" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -73,14 +78,14 @@ const nav = [
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
-  <body class="min-h-screen bg-background text-foreground antialiased">
-    <div class="flex min-h-screen">
+  <body class="h-screen overflow-hidden bg-background text-foreground antialiased">
+    <div class="flex h-full">
 
       <!-- ── Sidebar ────────────────────────────────────── -->
-      <aside class="w-55 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col">
+      <aside class="w-55 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col h-full overflow-y-auto">
 
         <!-- Logo -->
-        <a href="/" class="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border hover:bg-sidebar-accent/40 transition-colors">
+        <a href="/dashboard" class="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border hover:bg-sidebar-accent/40 transition-colors">
           <div class="size-8 rounded-md bg-sidebar-primary flex items-center justify-center shrink-0">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4 text-sidebar-primary-foreground">
               <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" stroke-linecap="round" stroke-linejoin="round"/>
