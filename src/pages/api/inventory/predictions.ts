@@ -144,21 +144,47 @@ export const GET: APIRoute = async ({ cookies }) => {
 
       // ── Natural language message ────────────────────────────────────────────
       const totalOrders    = riskOrders.length;
-      const confirmedCount = riskOrders.filter((o) => ["CONFIRMED", "INVOICED"].includes(o.status)).length;
+      const invoicedOrders = riskOrders.filter((o) => o.status === "INVOICED");
+      const confirmedOrders = riskOrders.filter((o) => o.status === "CONFIRMED");
+      const newOrders      = riskOrders.filter((o) => o.status === "NEW");
       const exportOrders   = riskOrders.filter((o) => o.market === "EXPORT");
       const destinations   = [...new Set(exportOrders.map((o) => o.destination_country).filter(Boolean))].join(", ");
 
+      // Describe el mix de pedidos en contexto
+      function ordersContext(): string {
+        const parts: string[] = [];
+        if (invoicedOrders.length > 0)
+          parts.push(`${invoicedOrders.length} facturado${invoicedOrders.length !== 1 ? "s" : ""}`);
+        if (confirmedOrders.length > 0)
+          parts.push(`${confirmedOrders.length} confirmado${confirmedOrders.length !== 1 ? "s" : ""}`);
+        if (newOrders.length > 0)
+          parts.push(`${newOrders.length} nuevo${newOrders.length !== 1 ? "s" : ""}`);
+        return parts.join(", ");
+      }
+
+      const exportFragment = exportOrders.length > 0
+        ? ` — ${exportOrders.length} van a ${destinations || "exportación"}`
+        : "";
+
       let msg: string;
       if (isCritical) {
-        const exportFragment = exportOrders.length > 0
-          ? ` (${exportOrders.length} export${destinations ? " → " + destinations : ""})`
-          : "";
-        msg = confirmedCount > 0
-          ? `Con los ${totalOrders} pedido${totalOrders !== 1 ? "s" : ""} activos${exportFragment}, te faltan ${shortfall.toLocaleString("es-AR")} unidades de "${name}". Sin reposición, no podés cumplir antes del ${dayLabel}.`
-          : `Los ${totalOrders} pedidos pendientes requieren ${total.toLocaleString("es-AR")} unidades de "${name}" pero solo tenés ${available.toLocaleString("es-AR")} disponibles. Faltante: ${shortfall.toLocaleString("es-AR")} un.`;
+        const hardCommitted = invoicedOrders.length + confirmedOrders.length;
+        if (invoicedOrders.length > 0) {
+          // Caso más urgente: ya está facturado, es una obligación legal
+          msg = `Tenés ${invoicedOrders.length} pedido${invoicedOrders.length !== 1 ? "s" : ""} ya facturado${invoicedOrders.length !== 1 ? "s" : ""} que necesitan ${total.toLocaleString("es-AR")} "${name}" pero solo hay ${available.toLocaleString("es-AR")} disponibles. Faltan ${shortfall.toLocaleString("es-AR")} unidades para cumplir${exportFragment}. Reposición urgente antes del ${dayLabel}.`;
+        } else if (hardCommitted > 0) {
+          // Confirmados = compromisos firmes con el cliente
+          msg = `Hay ${ordersContext()} que comprometieron ${total.toLocaleString("es-AR")} "${name}"${exportFragment}. Con stock disponible de ${available.toLocaleString("es-AR")}, faltan ${shortfall.toLocaleString("es-AR")} unidades. Necesitás reponerlas antes del ${dayLabel}.`;
+        } else {
+          // Solo nuevos = todavía hay margen para ajustar
+          msg = `${totalOrders} pedido${totalOrders !== 1 ? "s" : ""} nuevo${totalOrders !== 1 ? "s" : ""} requieren ${total.toLocaleString("es-AR")} "${name}"${exportFragment}, pero solo hay ${available.toLocaleString("es-AR")} disponibles. Si confirmás sin reponer, faltarán ${shortfall.toLocaleString("es-AR")} unidades.`;
+        }
       } else {
         const buffer = Math.round(available - total);
-        msg = `Stock de "${name}" ajustado: cubrís los pedidos actuales pero con solo ${buffer.toLocaleString("es-AR")} unidades de margen (${coveragePct}%). Si entra un pedido nuevo, puede faltar.`;
+        const committedNote = invoicedOrders.length + confirmedOrders.length > 0
+          ? ` Los pedidos ${ordersContext()} ya están comprometidos.`
+          : "";
+        msg = `Stock de "${name}" alcanza por ahora: cubrís los ${totalOrders} pedido${totalOrders !== 1 ? "s" : ""} con ${buffer.toLocaleString("es-AR")} unidades de margen (${coveragePct}% cobertura).${committedNote} Cualquier pedido nuevo puede generar faltante.`;
       }
 
       predictions.push({

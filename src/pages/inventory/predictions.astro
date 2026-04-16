@@ -186,30 +186,94 @@ const currencySymbol: Record<string, string> = {
                   Pedidos que generan la demanda
                 </p>
                 <div class="rounded-lg border border-border overflow-hidden divide-y divide-border">
-                  {p.orders_at_risk.map((o) => (
-                    <div class="flex items-center gap-3 px-4 py-3 text-xs">
-                      <a href={`/sale-orders/${o.order_id}`}
-                        class="font-mono text-muted-foreground hover:text-primary transition-colors shrink-0">
-                        #{o.order_id.slice(0, 8).toUpperCase()}
-                      </a>
-                      <span class="flex-1 font-medium truncate">{o.customer_name}</span>
-                      <span class="text-muted-foreground shrink-0">
-                        {o.quantity_contribution.toLocaleString("es-AR")} un.
-                      </span>
-                      <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0" style={`background:${statusColor[o.status]}18;color:${statusColor[o.status]};`}>
-                        {statusLabel[o.status] ?? o.status}
-                      </span>
-                      {o.market && (
-                        <span class="rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0" style="background:#f0eee6;color:#87867f;">
-                          {marketLabel[o.market] ?? o.market}
-                          {o.destination_country ? ` → ${o.destination_country}` : ""}
+                  {p.orders_at_risk.map((o, idx) => (
+                    <div>
+                      <!-- Row principal — clickeable para expandir -->
+                      <button
+                        type="button"
+                        class="order-row w-full flex items-center gap-3 px-4 py-3 text-xs hover:bg-secondary/40 transition-colors text-left"
+                        data-target={`order-detail-${p.dry_supply_id}-${idx}`}
+                      >
+                        <!-- Chevron -->
+                        <svg class="order-chevron size-3 text-muted-foreground shrink-0 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+
+                        <!-- Cliente (protagonista) -->
+                        <span class="flex-1 font-semibold text-foreground truncate">{o.customer_name}</span>
+
+                        <!-- Unidades que consume -->
+                        <span class="font-medium text-foreground shrink-0">
+                          {o.quantity_contribution.toLocaleString("es-AR")} un.
                         </span>
-                      )}
-                      {o.currency && (
-                        <span class="text-[10px] font-mono text-muted-foreground shrink-0">
-                          {currencySymbol[o.currency] ?? o.currency}
+
+                        <!-- Estado -->
+                        <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0" style={`background:${statusColor[o.status]}18;color:${statusColor[o.status]};`}>
+                          {statusLabel[o.status] ?? o.status}
                         </span>
-                      )}
+
+                        <!-- Mercado / destino -->
+                        {o.market && (
+                          <span class="rounded px-1.5 py-0.5 text-[10px] font-medium shrink-0" style="background:#f0eee6;color:#87867f;">
+                            {marketLabel[o.market] ?? o.market}
+                            {o.destination_country ? ` → ${o.destination_country}` : ""}
+                          </span>
+                        )}
+                      </button>
+
+                      <!-- Panel expandido con detalle del pedido -->
+                      <div
+                        id={`order-detail-${p.dry_supply_id}-${idx}`}
+                        class="hidden border-t border-border/60"
+                        style="background:#faf9f5;"
+                      >
+                        <div class="px-5 py-4 grid grid-cols-2 gap-x-8 gap-y-2 text-xs">
+                          <div class="col-span-2 flex items-center justify-between mb-1">
+                            <span class="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Detalle del pedido</span>
+                            <a
+                              href={`/sale-orders/${o.order_id}`}
+                              class="text-[11px] text-primary hover:underline font-medium"
+                            >
+                              Ir al pedido →
+                            </a>
+                          </div>
+                          <div>
+                            <span class="text-muted-foreground">ID</span>
+                            <span class="ml-2 font-mono text-foreground">#{o.order_id.slice(0, 8).toUpperCase()}</span>
+                          </div>
+                          <div>
+                            <span class="text-muted-foreground">Cliente</span>
+                            <span class="ml-2 font-medium text-foreground">{o.customer_name}</span>
+                          </div>
+                          <div>
+                            <span class="text-muted-foreground">Estado</span>
+                            <span class="ml-2 font-semibold" style={`color:${statusColor[o.status]};`}>
+                              {statusLabel[o.status] ?? o.status}
+                            </span>
+                          </div>
+                          <div>
+                            <span class="text-muted-foreground">Moneda</span>
+                            <span class="ml-2 text-foreground">{o.currency || "—"}</span>
+                          </div>
+                          <div>
+                            <span class="text-muted-foreground">Mercado</span>
+                            <span class="ml-2 text-foreground">
+                              {(marketLabel[o.market] ?? o.market) || "—"}
+                              {o.destination_country ? ` → ${o.destination_country}` : ""}
+                            </span>
+                          </div>
+                          <div>
+                            <span class="text-muted-foreground">Demanda de este insumo</span>
+                            <span class="ml-2 font-semibold text-foreground">{o.quantity_contribution.toLocaleString("es-AR")} un.</span>
+                          </div>
+                          <div>
+                            <span class="text-muted-foreground">Vence en</span>
+                            <span class="ml-2 font-medium" style={`color:${o.urgency_days <= 3 ? "#b53333" : "#8a6b1a"};`}>
+                              {o.urgency_days} día{o.urgency_days !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -356,6 +420,20 @@ const currencySymbol: Record<string, string> = {
 </div>
 
 <script is:inline>
+  // ── Acordeón de pedidos ───────────────────────────────────────────────────
+  document.querySelectorAll(".order-row").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.getAttribute("data-target");
+      const panel = document.getElementById(targetId);
+      const chevron = btn.querySelector(".order-chevron");
+      if (!panel) return;
+
+      const isOpen = !panel.classList.contains("hidden");
+      panel.classList.toggle("hidden", isOpen);
+      chevron.style.transform = isOpen ? "" : "rotate(90deg)";
+    });
+  });
+
   let _activeSupplyId = "";
 
   const modal     = document.getElementById("modal-stock");
