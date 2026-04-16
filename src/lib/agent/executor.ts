@@ -16,6 +16,14 @@ import {
 } from "@/lib/grpc/productionOrderClient";
 import { createOrder } from "@/lib/grpc/applicationClient";
 import {
+  generateSalesReport,
+  generateProductionReport,
+  generateGeneralReport,
+  generateLowStockReport,
+  generateLotTraceabilityReport,
+  generateCustomerReport,
+} from "@/lib/grpc/reportingClient";
+import {
   getDrySupplies,
   getStockTricapa,
   addStock,
@@ -184,6 +192,74 @@ export async function executeTool(name: string, args: any): Promise<string> {
         total_pedidos_venta: sales.length,
         total_ordenes_produccion: production.length,
         insumos_stock_bajo: (alerts.dry_supply_alerts ?? []).filter((a: any) => a.is_low).length,
+      });
+    }
+
+    // ── Informes (PDF) ───────────────────────────────────────
+    case "generar_informe_ventas": {
+      const r = await generateSalesReport({
+        from_date: args.from_date,
+        to_date: args.to_date,
+        market: args.market ?? "",
+        currency: args.currency ?? "",
+      }, tok);
+      return JSON.stringify({
+        download_url: `${r.download_url}?token=${encodeURIComponent(tok ?? "")}`,
+        filename: r.filename,
+        file_size: r.file_size,
+        tipo: "Informe de Ventas",
+      });
+    }
+    case "generar_informe_produccion": {
+      const r = await generateProductionReport({
+        from_date: args.from_date,
+        to_date: args.to_date,
+        product_id: args.product_id ?? "",
+      }, tok);
+      return JSON.stringify({
+        download_url: `${r.download_url}?token=${encodeURIComponent(tok ?? "")}`,
+        filename: r.filename,
+        file_size: r.file_size,
+        tipo: "Informe de Producción",
+      });
+    }
+    case "generar_informe_general": {
+      const r = await generateGeneralReport({
+        from_date: args.from_date,
+        to_date: args.to_date,
+      }, tok);
+      return JSON.stringify({
+        download_url: `${r.download_url}?token=${encodeURIComponent(tok ?? "")}`,
+        filename: r.filename,
+        file_size: r.file_size,
+        tipo: "Informe General",
+      });
+    }
+    case "generar_informe_stock_bajo": {
+      const r = await generateLowStockReport(tok);
+      return JSON.stringify({
+        download_url: `${r.download_url}?token=${encodeURIComponent(tok ?? "")}`,
+        filename: r.filename,
+        file_size: r.file_size,
+        tipo: "Informe de Stock Bajo",
+      });
+    }
+    case "generar_informe_trazabilidad_lote": {
+      const r = await generateLotTraceabilityReport(args.lot_number, tok);
+      return JSON.stringify({
+        download_url: `${r.download_url}?token=${encodeURIComponent(tok ?? "")}`,
+        filename: r.filename,
+        file_size: r.file_size,
+        tipo: "Trazabilidad de Lote",
+      });
+    }
+    case "generar_informe_cliente": {
+      const r = await generateCustomerReport(args.customer_id, args.from_date, args.to_date, tok);
+      return JSON.stringify({
+        download_url: `${r.download_url}?token=${encodeURIComponent(tok ?? "")}`,
+        filename: r.filename,
+        file_size: r.file_size,
+        tipo: "Informe de Cliente",
       });
     }
 

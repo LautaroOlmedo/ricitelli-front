@@ -310,4 +310,97 @@ export const toolDefs = [
       parameters: { type: "object", properties: {} },
     },
   },
+  // ── Informes (PDF) ───────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "generar_informe_ventas",
+      description:
+        "Genera un informe PDF de ventas para un rango de fechas. Devuelve un link de descarga. Las fechas deben estar en formato RFC3339 (ej: 2024-01-01T00:00:00Z). Opcionalmente filtra por mercado (DOMESTIC|EXPORT) o moneda (ARS|USD|EUR|CAD).",
+      parameters: {
+        type: "object",
+        properties: {
+          from_date: prop("string", "Fecha desde en RFC3339."),
+          to_date: prop("string", "Fecha hasta en RFC3339."),
+          market: prop("string", "Mercado opcional (DOMESTIC o EXPORT)."),
+          currency: prop("string", "Moneda opcional (ARS, USD, EUR, CAD)."),
+        },
+        required: ["from_date", "to_date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generar_informe_produccion",
+      description:
+        "Genera un informe PDF de producción: SV producidas, conversiones SV→PT, consumo e ingreso de insumos, y órdenes de producción. Fechas en RFC3339.",
+      parameters: {
+        type: "object",
+        properties: {
+          from_date: prop("string", "Fecha desde en RFC3339."),
+          to_date: prop("string", "Fecha hasta en RFC3339."),
+          product_id: prop("string", "ID de producto opcional."),
+        },
+        required: ["from_date", "to_date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generar_informe_general",
+      description:
+        "Genera un informe general que combina ventas, producción y salud de inventario. Ideal para un resumen ejecutivo. Fechas en RFC3339.",
+      parameters: {
+        type: "object",
+        properties: {
+          from_date: prop("string", "Fecha desde en RFC3339."),
+          to_date: prop("string", "Fecha hasta en RFC3339."),
+        },
+        required: ["from_date", "to_date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generar_informe_stock_bajo",
+      description:
+        "Genera un informe PDF de insumos secos con stock bajo e incluye la cantidad recomendada de reposición. No requiere fechas.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generar_informe_trazabilidad_lote",
+      description:
+        "Genera un informe PDF con la cadena completa de movimientos de un lote específico (L-DDMMYY-NNN-XX). Útil para auditorías.",
+      parameters: {
+        type: "object",
+        properties: {
+          lot_number: prop("string", "Número de lote a trazar."),
+        },
+        required: ["lot_number"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generar_informe_cliente",
+      description:
+        "Genera un informe PDF comercial para un cliente específico en un rango de fechas. Incluye órdenes, montos, productos favoritos y evolución mensual.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_id: prop("string", "ID del cliente."),
+          from_date: prop("string", "Fecha desde en RFC3339."),
+          to_date: prop("string", "Fecha hasta en RFC3339."),
+        },
+        required: ["customer_id", "from_date", "to_date"],
+      },
+    },
+  },
 ];
