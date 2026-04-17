@@ -276,7 +276,7 @@ const currencySymbol: Record<string, string> = {
   const VALID_TRANSITIONS = {
     NEW:               ["CONFIRMED",         "CANCELLED"],
     CONFIRMED:         ["INVOICED",          "CANCELLED"],
-    INVOICED:          ["READY_TO_DISPATCH", "CANCELLED"],
+    INVOICED:          ["READY_TO_DISPATCH", "DISPATCHED", "CANCELLED"],
     READY_TO_DISPATCH: ["DISPATCHED",        "CANCELLED"],
     DISPATCHED:        [],
     CANCELLED:         [],
