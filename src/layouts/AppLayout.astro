@@ -148,5 +148,393 @@ const nav = [
       </main>
 
     </div>
+
+    <!-- ── Chat Global ────────────────────────────────────── -->
+
+    <!-- Botón flotante -->
+    <button
+      id="global-chat-btn"
+      aria-label="Abrir asistente IA"
+      class="fixed bottom-6 right-6 z-40 size-13 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 active:scale-95 transition-all"
+    >
+      <svg id="chat-icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-5">
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <svg id="chat-icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-5 hidden">
+        <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    <!-- Drawer -->
+    <div
+      id="global-chat-drawer"
+      class="fixed bottom-22 right-6 z-40 hidden w-96 flex-col rounded-2xl border border-border bg-card shadow-xl overflow-hidden"
+      style="height: 560px;"
+    >
+      <!-- Header -->
+      <div class="flex items-center gap-3 px-4 py-3 border-b border-border bg-sidebar shrink-0">
+        <div class="size-7 rounded-full bg-primary/20 flex items-center justify-center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4 text-primary">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-sidebar-foreground leading-none">Asistente Ricitelli</p>
+          <p class="text-[11px] text-sidebar-foreground/50 mt-0.5" id="chat-status-label">listo</p>
+        </div>
+        <button id="chat-clear-btn" title="Nueva conversación" class="text-sidebar-foreground/40 hover:text-sidebar-foreground transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4">
+            <path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0M12 8v4M12 16h.01" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Messages -->
+      <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm"></div>
+
+      <!-- Sugerencias rápidas (visibles solo al inicio) -->
+      <div id="chat-suggestions" class="px-4 pb-3 flex flex-wrap gap-1.5">
+        {[
+          "Cargar un pedido",
+          "Ver stock bajo",
+          "Crear un producto",
+          "Resumen del sistema",
+        ].map((s) => (
+          <button
+            class="chat-suggestion text-[11px] px-2.5 py-1 rounded-full border border-border hover:bg-secondary/60 transition-colors text-muted-foreground"
+            data-text={s}
+          >{s}</button>
+        ))}
+      </div>
+
+      <!-- Input -->
+      <div class="px-3 pb-3 shrink-0">
+        <div class="flex items-end gap-2 rounded-xl border border-input bg-background px-3 py-2 focus-within:ring-2 focus-within:ring-ring">
+          <textarea
+            id="chat-input"
+            rows="1"
+            placeholder="Escribí tu consulta…"
+            class="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-28 leading-snug"
+          ></textarea>
+          <button
+            id="chat-send-btn"
+            class="size-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shrink-0 disabled:opacity-40"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+              <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
   </body>
 </html>
+
+<script is:inline>
+(function () {
+  const btn      = document.getElementById("global-chat-btn");
+  const drawer   = document.getElementById("global-chat-drawer");
+  const messages = document.getElementById("chat-messages");
+  const input    = document.getElementById("chat-input");
+  const sendBtn  = document.getElementById("chat-send-btn");
+  const statusEl = document.getElementById("chat-status-label");
+  const clearBtn = document.getElementById("chat-clear-btn");
+  const suggestionsEl = document.getElementById("chat-suggestions");
+  const iconOpen  = document.getElementById("chat-icon-open");
+  const iconClose = document.getElementById("chat-icon-close");
+
+  let history = [];
+  let busy = false;
+  let open = false;
+
+  // ── Toggle drawer ──────────────────────────────────────────────────────────
+  function toggleDrawer() {
+    open = !open;
+    drawer.classList.toggle("hidden", !open);
+    drawer.classList.toggle("flex", open);
+    iconOpen.classList.toggle("hidden", open);
+    iconClose.classList.toggle("hidden", !open);
+    if (open) { input.focus(); scrollBottom(); }
+  }
+  btn.addEventListener("click", toggleDrawer);
+
+  // ── Sugerencias ────────────────────────────────────────────────────────────
+  document.querySelectorAll(".chat-suggestion").forEach((s) => {
+    s.addEventListener("click", () => {
+      input.value = s.dataset.text;
+      send();
+    });
+  });
+
+  // ── Clear ──────────────────────────────────────────────────────────────────
+  clearBtn.addEventListener("click", () => {
+    history = [];
+    messages.innerHTML = "";
+    suggestionsEl.classList.remove("hidden");
+    statusEl.textContent = "listo";
+  });
+
+  // ── Input auto-resize + Enter ──────────────────────────────────────────────
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 112) + "px";
+  });
+  sendBtn.addEventListener("click", send);
+
+  function scrollBottom() {
+    setTimeout(() => { messages.scrollTop = messages.scrollHeight; }, 30);
+  }
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
+  function bubble(role, text) {
+    const wrap = document.createElement("div");
+    wrap.className = (role === "user" ? "flex justify-end" : "flex justify-start") + " msg-wrap";
+    const el = document.createElement("div");
+    el.className = role === "user"
+      ? "max-w-[80%] rounded-2xl rounded-tr-sm bg-primary text-primary-foreground px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-wrap"
+      : "max-w-[90%] rounded-2xl rounded-tl-sm bg-secondary text-foreground px-3.5 py-2.5 text-[13px] leading-relaxed";
+    el.textContent = text;
+    wrap.appendChild(el);
+    messages.appendChild(wrap);
+    scrollBottom();
+    return el;
+  }
+
+  function toolChip(name, done) {
+    const el = document.createElement("div");
+    el.className = "flex items-center gap-1.5 text-[11px] text-muted-foreground";
+    el.innerHTML = done
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3 text-green-600"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>${name}`
+      : `<span class="size-3 rounded-full border-2 border-primary border-t-transparent animate-spin inline-block"></span>${name}…`;
+    messages.appendChild(el);
+    scrollBottom();
+    return el;
+  }
+
+  // ── Formulario inline ─────────────────────────────────────────────────────
+  function renderForm(spec) {
+    const wrap = document.createElement("div");
+    wrap.className = "rounded-xl border border-border bg-background p-4 space-y-3 text-[13px]";
+
+    const title = document.createElement("p");
+    title.className = "font-semibold text-foreground text-sm";
+    title.textContent = spec.title;
+    wrap.appendChild(title);
+
+    const fieldEls = {};
+
+    for (const f of spec.fields) {
+      const group = document.createElement("div");
+      group.className = "space-y-1";
+
+      const lbl = document.createElement("label");
+      lbl.className = "text-[11px] font-medium text-muted-foreground uppercase tracking-wide";
+      lbl.textContent = f.label + (f.required ? " *" : "");
+      group.appendChild(lbl);
+
+      let el;
+      if (f.type === "select") {
+        el = document.createElement("select");
+        el.className = "w-full rounded-lg border border-input bg-card px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-ring";
+        (f.options ?? []).forEach((opt) => {
+          const o = document.createElement("option");
+          o.value = opt; o.textContent = opt;
+          if (f.default === opt) o.selected = true;
+          el.appendChild(o);
+        });
+      } else if (f.type === "textarea") {
+        el = document.createElement("textarea");
+        el.rows = 2;
+        el.className = "w-full rounded-lg border border-input bg-card px-3 py-2 text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-ring";
+        el.placeholder = f.placeholder ?? "";
+        // Don't pre-fill text areas from LLM defaults — could confuse users
+      } else {
+        el = document.createElement("input");
+        el.type = f.type === "number" ? "number" : "text";
+        el.className = "w-full rounded-lg border border-input bg-card px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-ring";
+        el.placeholder = f.placeholder ?? "";
+        // Don't pre-fill from LLM defaults — placeholder is enough hint
+        if (f.required) el.required = true;
+      }
+
+      fieldEls[f.name] = el;
+      group.appendChild(el);
+      wrap.appendChild(group);
+    }
+
+    // Botones
+    const actions = document.createElement("div");
+    actions.className = "flex gap-2 pt-1";
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "button";
+    submitBtn.className = "flex-1 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-[13px] font-medium hover:bg-primary/90 transition-colors";
+    submitBtn.textContent = spec.submit_label ?? "Confirmar";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "rounded-lg border border-input bg-background px-3 py-2 text-[13px] text-muted-foreground hover:bg-secondary/60 transition-colors";
+    cancelBtn.textContent = "Cancelar";
+
+    actions.appendChild(submitBtn);
+    actions.appendChild(cancelBtn);
+    wrap.appendChild(actions);
+    messages.appendChild(wrap);
+    scrollBottom();
+
+    // Focus primer campo
+    const first = Object.values(fieldEls)[0];
+    if (first) setTimeout(() => first.focus(), 50);
+
+    cancelBtn.addEventListener("click", () => {
+      wrap.remove();
+      statusEl.textContent = "listo";
+    });
+
+    submitBtn.addEventListener("click", () => {
+      if (submitBtn.disabled) return;
+      // Validar requeridos
+      for (const f of spec.fields) {
+        if (f.required && !fieldEls[f.name].value.trim()) {
+          fieldEls[f.name].classList.add("border-destructive");
+          fieldEls[f.name].focus();
+          return;
+        }
+        fieldEls[f.name].classList.remove("border-destructive");
+      }
+      submitBtn.disabled = true;
+      // Construir resumen legible para el usuario
+      const vals = {};
+      for (const f of spec.fields) { vals[f.name] = fieldEls[f.name].value; }
+      const summary = spec.fields
+        .map((f) => `${f.label}: ${vals[f.name]}`)
+        .join(", ");
+      wrap.remove();
+      // Enviar datos como mensaje con JSON embebido — incluye __tool__ para que el LLM sepa qué ejecutar
+      const payload = { __tool__: spec.next_tool ?? "", ...vals };
+      input.value = `[FORM_DATA:${JSON.stringify(payload)}] ${summary}`;
+      send();
+    });
+  }
+
+  // ── Send ───────────────────────────────────────────────────────────────────
+  async function send() {
+    const text = input.value.trim();
+    if (!text || busy) return;
+
+    suggestionsEl.classList.add("hidden");
+    // Strip [FORM_DATA:{...}] prefix — show only the human-readable summary
+    const displayText = text.replace(/^\[FORM_DATA:\{.*?\}\]\s*/s, "");
+    bubble("user", displayText || text);
+    input.value = "";
+    input.style.height = "auto";
+    busy = true;
+    sendBtn.disabled = true;
+    statusEl.textContent = "pensando…";
+
+    let assistantEl = null;
+    let assistantText = "";
+    let activeChip = null;
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, history }),
+      });
+
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let ev;
+          try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (ev.type === "token") {
+            if (!assistantEl) {
+              assistantEl = bubble("assistant", "");
+            }
+            assistantText += ev.content;
+            assistantEl.textContent = assistantText;
+            scrollBottom();
+
+          } else if (ev.type === "tool_start") {
+            // Hide raw tool-call text emitted before the tool executes
+            if (assistantEl) {
+              assistantEl.closest(".msg-wrap")?.remove();
+              assistantEl = null;
+              assistantText = "";
+            }
+            if (ev.name === "solicitar_datos") {
+              statusEl.textContent = "preparando formulario…";
+            } else {
+              statusEl.textContent = ev.name + "…";
+              activeChip = toolChip(ev.name, false);
+            }
+
+          } else if (ev.type === "tool_end") {
+            // ── Formulario inline ──────────────────────────────
+            if (ev.result && ev.result.__form__) {
+              if (activeChip) { activeChip.remove(); activeChip = null; }
+              renderForm(ev.result);
+              busy = false;
+              sendBtn.disabled = false;
+              statusEl.textContent = "esperando datos…";
+              return; // pausa el loop — el form retomará al submit
+            }
+            if (activeChip) {
+              activeChip.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3 text-green-600"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>${ev.name}`;
+              activeChip = null;
+            }
+            assistantEl = null;
+            assistantText = "";
+            statusEl.textContent = "procesando…";
+
+            // Refresh page data when a mutation tool succeeds on the relevant page
+            const pageRefreshMap = {
+              crear_insumo:    ["/dry-supplies"],
+              agregar_stock_insumo: ["/dry-supplies"],
+              crear_producto:  ["/products"],
+              hacer_pedido_cliente: ["/sale-orders"],
+              crear_cliente:   ["/customers"],
+            };
+            const currentPath = window.location.pathname.replace(/\/$/, "");
+            const refreshPaths = pageRefreshMap[ev.name] ?? [];
+            if (ev.result && !ev.result.error && refreshPaths.some(p => currentPath.startsWith(p))) {
+              setTimeout(() => window.location.reload(), 800);
+            }
+
+          } else if (ev.type === "done") {
+            history = ev.history ?? history;
+            statusEl.textContent = "listo";
+
+          } else if (ev.type === "error") {
+            bubble("assistant", "Error: " + ev.message);
+            statusEl.textContent = "error";
+          }
+        }
+      }
+    } catch (e) {
+      bubble("assistant", "Error de conexión: " + e.message);
+      statusEl.textContent = "error";
+    } finally {
+      busy = false;
+      sendBtn.disabled = false;
+      if (statusEl.textContent !== "listo") statusEl.textContent = "listo";
+    }
+  }
+})();
+</script>

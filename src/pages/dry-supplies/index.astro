@@ -35,7 +35,12 @@ const allCategories = ["ALL", ...Object.keys(categoryMeta)];
 
 const totalPhysical   = Object.values(triCapaMap).reduce((s, t) => s + t.physical_stock,   0);
 const totalCommitted  = Object.values(triCapaMap).reduce((s, t) => s + t.committed_stock,  0);
-const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stock < 500).length;
+const lowStockCount   = supplies.filter((s) => {
+  const t = triCapaMap[s.id];
+  if (!t) return false;
+  if (s.reorder_point > 0) return t.available_stock < s.reorder_point;
+  return t.available_stock < 500;
+}).length;
 ---
 
 <AppLayout title="Insumos Secos">
@@ -82,7 +87,7 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
         { label: "Insumos",      value: String(supplies.length),                sub: "en catálogo",       color: "#4E0707" },
         { label: "Stock físico", value: totalPhysical.toLocaleString("es-AR"),  sub: "unidades totales",  color: "#556B2F" },
         { label: "Comprometido", value: totalCommitted.toLocaleString("es-AR"), sub: "en producción",     color: "#B8860B" },
-        { label: "Stock bajo",   value: String(lowStockCount),                  sub: "< 500 disponibles", color: lowStockCount > 0 ? "#EF4444" : "#22C55E" },
+        { label: "Stock bajo",   value: String(lowStockCount),                  sub: "bajo punto de reorden", color: lowStockCount > 0 ? "#EF4444" : "#22C55E" },
       ] as const).map(({ label, value, sub, color }) => (
         <div class="rounded-xl border border-border bg-card p-5">
           <p class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
@@ -144,7 +149,7 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
           {supplies.map((s) => {
             const tri  = triCapaMap[s.id];
             const meta = categoryMeta[s.category] ?? categoryMeta.OTHER;
-            const isLow = tri && tri.available_stock < 500;
+            const isLow = tri && (s.reorder_point > 0 ? tri.available_stock < s.reorder_point : tri.available_stock < 500);
             const committedPct = tri && tri.physical_stock > 0
               ? Math.min(Math.round((tri.committed_stock / tri.physical_stock) * 100), 100)
               : 0;
@@ -275,17 +280,24 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
         <input id="ns-name" type="text" placeholder="ej: Contraetiqueta Japón Hey Malbec"
           class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
       </div>
-      <div>
-        <label for="ns-category" class="text-sm font-medium">Categoría</label>
-        <select id="ns-category" class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-          <option value="LABEL">Etiqueta</option>
-          <option value="CONTRAETIQUETA">Contraetiqueta</option>
-          <option value="BOX">Caja</option>
-          <option value="CORK">Corcho</option>
-          <option value="CAPSULE">Cápsula</option>
-          <option value="BOTTLE">Botella</option>
-          <option value="OTHER">Otro</option>
-        </select>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="ns-category" class="text-sm font-medium">Categoría</label>
+          <select id="ns-category" class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+            <option value="LABEL">Etiqueta</option>
+            <option value="CONTRAETIQUETA">Contraetiqueta</option>
+            <option value="BOX">Caja</option>
+            <option value="CORK">Corcho</option>
+            <option value="CAPSULE">Cápsula</option>
+            <option value="BOTTLE">Botella</option>
+            <option value="OTHER">Otro</option>
+          </select>
+        </div>
+        <div>
+          <label for="ns-reorder" class="text-sm font-medium">Punto de reorden</label>
+          <input id="ns-reorder" type="number" min="0" placeholder="ej: 5000"
+            class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
+        </div>
       </div>
       <p id="ns-error" class="hidden text-xs text-destructive"></p>
     </div>
@@ -339,6 +351,7 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
   const PAGE_SIZE = 20;
 
   function applyFilters(resetPage = true) {
+    if (!grid) return;
     if (resetPage) currentPage = 1;
     const q = searchInput?.value.trim().toLowerCase() ?? "";
     const cards = Array.from(grid.querySelectorAll<HTMLElement>(".supply-card"));
@@ -423,7 +436,7 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
   const modalRef    = document.getElementById("modal-reference") as HTMLInputElement;
   const modalError  = document.getElementById("modal-error")!;
 
-  grid.querySelectorAll<HTMLElement>(".btn-add-stock").forEach((btn) => {
+  grid?.querySelectorAll<HTMLElement>(".btn-add-stock")?.forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -463,10 +476,11 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
   const nsName    = document.getElementById("ns-name") as HTMLInputElement;
   const nsCategory = document.getElementById("ns-category") as HTMLSelectElement;
   const nsUnit    = document.getElementById("ns-unit") as HTMLSelectElement;
+  const nsReorder = document.getElementById("ns-reorder") as HTMLInputElement;
   const nsError   = document.getElementById("ns-error")!;
 
   document.getElementById("btn-new-supply")!.addEventListener("click", () => {
-    nsCode.value = ""; nsName.value = ""; nsError.classList.add("hidden"); showModal(nsModal);
+    nsCode.value = ""; nsName.value = ""; nsReorder.value = ""; nsError.classList.add("hidden"); showModal(nsModal);
   });
   document.getElementById("ns-cancel")!.addEventListener("click", () => hideModal(nsModal));
   nsModal.addEventListener("click", (e) => { if (e.target === nsModal) hideModal(nsModal); });
@@ -478,7 +492,7 @@ const lowStockCount   = Object.values(triCapaMap).filter((t) => t.available_stoc
     try {
       const res = await fetch("/api/dry-supplies", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, name, category: nsCategory.value, unit: nsUnit.value }),
+        body: JSON.stringify({ code, name, category: nsCategory.value, unit: nsUnit.value, reorder_point: parseInt(nsReorder.value || "0", 10) }),
       });
       if (res.ok) { hideModal(nsModal); window.location.reload(); }
       else {

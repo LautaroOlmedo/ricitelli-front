@@ -43,6 +43,13 @@ const columns = [
     badge:   { bg: "#B8860B18", color: "#92690A" },
   },
   {
+    status:  "READY_TO_DISPATCH",
+    label:   "Listo p/ Despacho",
+    accent:  "#0F766E",
+    bgLight: "rgba(15,118,110,0.06)",
+    badge:   { bg: "#0F766E18", color: "#0D6B63" },
+  },
+  {
     status:  "DISPATCHED",
     label:   "Despachado",
     accent:  "#556B2F",
@@ -257,20 +264,22 @@ const currencySymbol: Record<string, string> = {
 <script is:inline>
   // ── Column accent colors (matches SSR data) ─────────────────
   const COLUMN_META = {
-    NEW:        { label: "Nuevo",       accent: "#64748B" },
-    CONFIRMED:  { label: "Confirmado",  accent: "#2563EB" },
-    INVOICED:   { label: "Facturado",   accent: "#B8860B" },
-    DISPATCHED: { label: "Despachado",  accent: "#556B2F" },
-    CANCELLED:  { label: "Cancelado",   accent: "#9B1C1C" },
+    NEW:               { label: "Nuevo",              accent: "#64748B" },
+    CONFIRMED:         { label: "Confirmado",         accent: "#2563EB" },
+    INVOICED:          { label: "Facturado",          accent: "#B8860B" },
+    READY_TO_DISPATCH: { label: "Listo p/ Despacho",  accent: "#0F766E" },
+    DISPATCHED:        { label: "Despachado",          accent: "#556B2F" },
+    CANCELLED:         { label: "Cancelado",           accent: "#9B1C1C" },
   };
 
   // ── Valid status transitions ──────────────────────────────────
   const VALID_TRANSITIONS = {
-    NEW:        ["CONFIRMED", "CANCELLED"],
-    CONFIRMED:  ["INVOICED",  "CANCELLED"],
-    INVOICED:   ["DISPATCHED","CANCELLED"],
-    DISPATCHED: [],
-    CANCELLED:  [],
+    NEW:               ["CONFIRMED",         "CANCELLED"],
+    CONFIRMED:         ["INVOICED",          "CANCELLED"],
+    INVOICED:          ["READY_TO_DISPATCH", "CANCELLED"],
+    READY_TO_DISPATCH: ["DISPATCHED",        "CANCELLED"],
+    DISPATCHED:        [],
+    CANCELLED:         [],
   };
 
   // ── Filter state ──────────────────────────────────────────────

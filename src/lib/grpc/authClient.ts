@@ -5,21 +5,21 @@ import path from "path";
 const PROTO_PATH = path.join(process.cwd(), "src/proto/auth.proto");
 const HOST = process.env.GRPC_PRODUCT_HOST ?? "localhost:50051";
 
-let _client: any = null;
+let _pkgDef: any = null;
 
 function getClient() {
-  if (!_client) {
-    const pkgDef = protoLoader.loadSync(PROTO_PATH, {
+  // Don't cache the channel — reconnects cleanly after backend restarts
+  if (!_pkgDef) {
+    _pkgDef = protoLoader.loadSync(PROTO_PATH, {
       keepCase: true,
       longs: String,
       enums: String,
       defaults: true,
       oneofs: true,
     });
-    const proto = grpc.loadPackageDefinition(pkgDef) as any;
-    _client = new proto.auth.AuthService(HOST, grpc.credentials.createInsecure());
   }
-  return _client;
+  const proto = grpc.loadPackageDefinition(_pkgDef) as any;
+  return new proto.auth.AuthService(HOST, grpc.credentials.createInsecure());
 }
 
 export async function login(

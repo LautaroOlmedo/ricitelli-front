@@ -66,12 +66,14 @@ export async function getProductByID(id: string, token?: string): Promise<Produc
 export async function createProduct(
   name: string,
   bom: BillOfDrySupply[],
-  token?: string
+  token?: string,
+  sku?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     getClient().CreateProduct(
       {
         name,
+        sku: sku ?? "",
         bods: bom.map((b) => ({
           dry_supply_id: b.dry_supply_id,
           quantity_per_unit: b.quantity_per_unit,

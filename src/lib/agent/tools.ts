@@ -125,7 +125,59 @@ export const toolDefs = [
       },
     },
   },
+  // ── UI: formulario inline ────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "solicitar_datos",
+      description: "Muestra un formulario inline al usuario para recolectar datos estructurados antes de ejecutar una acción. Usá esta tool SIEMPRE que necesites datos del usuario en lugar de pedirlos en texto plano.",
+      parameters: {
+        type: "object",
+        properties: {
+          title:  prop("string", "Título del formulario (ej: 'Nuevo Insumo Seco')."),
+          submit_label: prop("string", "Texto del botón de envío (ej: 'Crear insumo')."),
+          next_tool: prop("string", "Nombre exacto de la herramienta a ejecutar con los datos del formulario (ej: 'crear_insumo'). OBLIGATORIO."),
+          fields: {
+            type: "array",
+            description: "Campos del formulario.",
+            items: {
+              type: "object",
+              properties: {
+                name:        prop("string", "Nombre interno del campo (snake_case)."),
+                label:       prop("string", "Etiqueta visible."),
+                type:        prop("string", "Tipo: text | number | select | textarea."),
+                placeholder: prop("string", "Placeholder opcional — debe ser un ejemplo GENÉRICO (ej: 'ETQ-001', 'Mi insumo'). NUNCA uses datos reales del sistema como placeholder."),
+                required:    { type: "boolean", description: "Si el campo es obligatorio." },
+                options:     { type: "array", items: { type: "string" }, description: "Opciones para type=select." },
+                default:     prop("string", "Valor pre-seleccionado para type=select únicamente. NO usar en campos text/number — el usuario debe ingresar el valor desde cero."),
+              },
+              required: ["name", "label", "type"],
+            },
+          },
+        },
+        required: ["title", "next_tool", "fields"],
+      },
+    },
+  },
   // ── Insumos Secos ────────────────────────────────────────
+  {
+    type: "function",
+    function: {
+      name: "crear_insumo",
+      description: "Crea un nuevo insumo seco (etiqueta, caja, corcho, cápsula, etc.) en el catálogo.",
+      parameters: {
+        type: "object",
+        properties: {
+          code:          prop("string", "Código SKU del insumo (ej: HEYM-ETQ-AR)."),
+          name:          prop("string", "Nombre descriptivo del insumo."),
+          category:      prop("string", "Categoría: LABEL | CONTRAETIQUETA | BOX | CORK | CAPSULE | BOTTLE | OTHER."),
+          unit:          prop("string", "Unidad: UNIT | BOX | KG."),
+          reorder_point: { type: "integer", description: "Umbral mínimo de stock para alerta (0 = sin alerta)." },
+        },
+        required: ["code", "name", "category", "unit"],
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -243,6 +295,20 @@ export const toolDefs = [
           group: prop("string", "Grupo comercial: DISTRIBUTOR | WINE_SHOP | RESTAURANT | HOTEL | RETAIL | PRIVATE | EXPORT_AGENT."),
         },
         required: ["social_reason", "market_type", "group"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "buscar_cliente",
+      description: "Busca clientes por nombre o razón social. Usar siempre que el usuario mencione el nombre de un cliente pero no su ID.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: prop("string", "Nombre o parte del nombre del cliente a buscar."),
+        },
+        required: ["query"],
       },
     },
   },

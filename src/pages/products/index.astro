@@ -198,7 +198,7 @@ const palette = [
                       </svg>
                       <span class="absolute top-3 right-3 font-mono text-[10px] font-bold px-2 py-1 rounded-md text-white/90 tracking-wide"
                         style={`background: ${pal.accent};`}>
-                        {p.sku || p.id.slice(0, 4).toUpperCase()}
+                        {(p.sku && !p.sku.includes('-')) ? p.sku : p.name.slice(0, 6).toUpperCase()}
                       </span>
                     </div>
 

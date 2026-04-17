@@ -7,16 +7,49 @@ const LLM_BASE_URL =
 const LLM_MODEL =
   process.env.LLM_MODEL ?? "Qwen/Qwen2.5-Coder-32B-Instruct-AWQ";
 
-const SYSTEM_PROMPT = `Eres un asistente experto en gestión de producción de Ricitelli.
-Tienes acceso a herramientas que operan sobre productos, pedidos de venta y órdenes de producción.
+const SYSTEM_PROMPT = `Sos un asistente experto en gestión comercial y producción de Bodegas Ricitelli.
+Tenés acceso a herramientas para consultar y operar sobre clientes, productos, pedidos de venta e inventario.
 
-Reglas:
-- Usa las herramientas cuando el usuario pida información o quiera realizar una acción.
-- Si necesitas el ID de un producto o pedido que no tienes, primero lista para obtenerlo.
-- Para crear un pedido completo (venta + producción), usa crear_orden_completa.
-- Responde siempre en español, de forma concisa y clara.
-- Cuando muestres listas, usa formato estructurado (bullets o tabla simple).
-- Para valores monetarios usa dos decimales.`;
+## Reglas generales
+- Usá las herramientas cuando el usuario pida información o quiera realizar una acción.
+- Respondé siempre en español rioplatense, de forma concisa y clara.
+- Cuando mostrés listas, usá formato de tabla o bullets estructurados.
+- Para valores monetarios usá dos decimales.
+- Nunca inventes IDs ni datos — siempre consultá primero con las herramientas.
+- **NUNCA pidas datos al usuario en texto plano.** Cuando necesités información estructurada (para crear algo, completar campos, etc.), usá SIEMPRE la tool \`solicitar_datos\` para mostrar un formulario inline.
+- En los campos del formulario, los \`placeholder\` deben ser **siempre ejemplos genéricos** (ej: "ETQ-001", "Mi insumo"). **Nunca uses datos reales del sistema** (nombres de productos, códigos HEYM, IDs, etc.) como placeholder — confunde al usuario.
+- Cuando recibís un mensaje que empieza con \`[FORM_DATA:{...}]\`, los datos son los valores completados por el usuario. El JSON incluye \`__tool__\` con el nombre exacto de la herramienta a ejecutar. Llamá esa herramienta **inmediatamente** con los campos del JSON — sin modificar, sin inventar, sin mezclar con datos de registros previos.
+- **CRÍTICO**: Los valores del \`[FORM_DATA]\` son los ÚNICOS valores válidos. Ignorá cualquier dato previo en la conversación. Si el form dice \`code: "ABC-123"\`, usá \`"ABC-123"\`, no otro código que hayas visto antes.
+- **NUNCA** le digas al usuario que copie o pegue texto con \`[FORM_DATA]\` — ese formato es interno. Si necesitás datos, usá \`solicitar_datos\`.
+- Si una herramienta falla, intentá una vez más con los mismos datos. Si falla dos veces, informá el error al usuario y pará.
+- Los \`placeholder\` son solo ayuda visual — **nunca son valores reales**.
+
+## Cómo cargar un pedido de venta
+Cuando el usuario quiera crear un pedido, seguí este flujo:
+
+1. **Identificar cliente**: si menciona el nombre usá \`buscar_cliente\`. Si no lo encontrás, usá \`listar_clientes\`.
+2. **Identificar productos**: si menciona nombres usá \`listar_productos\` y encontrá el ID correcto.
+3. **Confirmar antes de crear**: mostrá un resumen con cliente, productos, cantidades, precio y moneda. Preguntá "¿Confirmo el pedido?" antes de ejecutar.
+4. **Crear**: usá \`hacer_pedido_cliente\` con customer_id, items (product_id, quantity, unit_price), currency y destination_country si es exportación.
+5. **Confirmar resultado**: mostrá el ID del pedido y el link \`/sale-orders/{id}\`.
+
+## Campos del pedido
+- currency: ARS (default) | USD | EUR | CAD
+- sale_type: SALE (default) | SAMPLE_CUSTOMS | GIFT | INTERNAL | COMMERCIAL_SAMPLE
+- destination_country: código ISO-3166 alpha-2 (GB, JP, US, BR…) — solo para exportación
+- El mercado DOMESTIC/EXPORT se infiere automáticamente del tipo de cliente
+
+## Disparadores de carga de pedido
+Si el usuario dice cosas como "quiero cargar un pedido para X", "X pide N botellas de Y", "registrá un pedido de Y para X" → iniciá el flujo de inmediato sin preguntar si querés hacerlo.
+
+## Otras acciones que podés realizar
+- **Crear producto**: \`crear_producto\` con name y bods (BOM de insumos). Si no tenés los IDs de insumos, listá primero con \`listar_insumos\`.
+- **Crear insumo seco**: \`crear_insumo\` con code, name, category (LABEL|CONTRAETIQUETA|BOX|CORK|CAPSULE|BOTTLE|OTHER), unit (UNIT|BOX|KG) y reorder_point opcional.
+- **Agregar stock**: \`agregar_stock_insumo\` con id, quantity y reference.
+- **Convertir SV→PT**: \`convertir_sv_a_pt\` con product_id, quantity y lot_number.
+- **Crear cliente**: \`crear_cliente\` con social_reason, market_type (INTERNAL|EXTERNAL) y group.
+
+Para cualquier creación, confirmá los datos con el usuario antes de ejecutar.`;
 
 // ── Stream one LLM turn ──────────────────────────────────────────────────────
 // Yields text tokens in real-time and returns the accumulated state when done.
@@ -121,10 +154,117 @@ async function* streamTurn(
   };
 }
 
-// Regex fallback for models that embed JSON tool calls in content
+// Regex fallback for models that embed tool calls in content as text
 function parseTextToolCalls(content: string) {
   const calls: { id: string; name: string; arguments: string }[] = [];
   const clean = content.replace(/<think>[\s\S]*?<\/think>/g, "");
+
+  // Pattern 0: tool_name { ... }  — bare known tool name followed by JSON object (Qwen variant)
+  // Must match against known tool names only to avoid false positives (e.g. ```json blocks)
+  const knownTools = new Set([
+    "listar_productos","obtener_producto","crear_producto",
+    "listar_pedidos_venta","obtener_pedido_venta",
+    "listar_ordenes_produccion","obtener_orden_produccion",
+    "crear_orden_completa","solicitar_datos",
+    "crear_insumo","listar_insumos","obtener_tricapa_insumo","agregar_stock_insumo",
+    "reporte_inventario","alertas_stock_bajo","obtener_tricapa_producto","convertir_sv_a_pt",
+    "listar_clientes","obtener_cliente","crear_cliente","buscar_cliente","desactivar_cliente",
+    "pedidos_por_cliente","hacer_pedido_cliente","resumen_sistema",
+    "generar_informe_ventas","generar_informe_produccion","generar_informe_general",
+    "generar_informe_stock_bajo","generar_informe_trazabilidad_lote","generar_informe_cliente",
+  ]);
+  const bareNameRe = /\b([a-z][a-z_]*)\s*\{/g;
+  let bn: RegExpExecArray | null;
+  while ((bn = bareNameRe.exec(clean)) !== null) {
+    const name = bn[1];
+    if (!knownTools.has(name)) continue;
+    // Find the balanced JSON object starting at the `{`
+    let depth = 0, start = bn.index + bn[0].length - 1, pos = start;
+    while (pos < clean.length) {
+      if (clean[pos] === "{") depth++;
+      else if (clean[pos] === "}") { depth--; if (depth === 0) { pos++; break; } }
+      else if (clean[pos] === '"') {
+        pos++;
+        while (pos < clean.length && !(clean[pos] === '"' && clean[pos - 1] !== "\\")) pos++;
+      }
+      pos++;
+    }
+    try {
+      const args = JSON.parse(clean.slice(start, pos));
+      calls.push({ id: `bare_${calls.length}`, name, arguments: JSON.stringify(args) });
+    } catch { /* skip */ }
+  }
+  if (calls.length > 0) return calls;
+
+  // Pattern 1a: <tool_name>{...}</tool_name>
+  const xmlJsonRe = /<([a-z_]+)>\s*(\{[\s\S]*?\})\s*<\/\1>/g;
+  let m: RegExpExecArray | null;
+  while ((m = xmlJsonRe.exec(clean)) !== null) {
+    const name = m[1];
+    try {
+      const args = JSON.parse(m[2]);
+      calls.push({ id: `xml_${calls.length}`, name, arguments: JSON.stringify(args) });
+    } catch { /* skip */ }
+  }
+  if (calls.length > 0) return calls;
+
+  // Pattern 1b: <tool_name attr="val" fields=[...] /> — Qwen XML attribute style
+  const xmlTagRe = /<([a-z_]+)\s([^>]*?)(?:\/>|>[\s\S]*?<\/\1>)/g;
+  while ((m = xmlTagRe.exec(clean)) !== null) {
+    const name = m[1];
+    if (["think","p","div","span","br","b","i","ul","ol","li","code","pre","a","h1","h2","h3","table","tr","td","th"].includes(name)) continue;
+    const attrStr = m[2];
+    const obj: Record<string, any> = {};
+
+    // Walk the attribute string extracting key=VALUE where VALUE is "string", [...] (balanced), or word
+    let pos = 0;
+    while (pos < attrStr.length) {
+      // Skip whitespace
+      while (pos < attrStr.length && /\s/.test(attrStr[pos])) pos++;
+      // Match key=
+      const keyMatch = /^([a-zA-Z_]\w*)\s*=\s*/.exec(attrStr.slice(pos));
+      if (!keyMatch) { pos++; continue; }
+      const key = keyMatch[1];
+      pos += keyMatch[0].length;
+      if (pos >= attrStr.length) break;
+
+      const ch = attrStr[pos];
+      if (ch === '"') {
+        // Quoted string
+        const end = attrStr.indexOf('"', pos + 1);
+        if (end === -1) break;
+        obj[key] = attrStr.slice(pos + 1, end);
+        pos = end + 1;
+      } else if (ch === '[' || ch === '{') {
+        // Balanced bracket extraction
+        const open = ch, close = ch === '[' ? ']' : '}';
+        let depth = 0, start = pos;
+        while (pos < attrStr.length) {
+          if (attrStr[pos] === open) depth++;
+          else if (attrStr[pos] === close) { depth--; if (depth === 0) { pos++; break; } }
+          else if (attrStr[pos] === '"') {
+            pos++;
+            while (pos < attrStr.length && !(attrStr[pos] === '"' && attrStr[pos-1] !== '\\')) pos++;
+          }
+          pos++;
+        }
+        try { obj[key] = JSON.parse(attrStr.slice(start, pos)); } catch { obj[key] = attrStr.slice(start, pos); }
+      } else {
+        // Bare word
+        const end = attrStr.slice(pos).search(/[\s>]/);
+        const word = end === -1 ? attrStr.slice(pos) : attrStr.slice(pos, pos + end);
+        obj[key] = word;
+        pos += word.length;
+      }
+    }
+
+    if (Object.keys(obj).length > 0) {
+      calls.push({ id: `attr_${calls.length}`, name, arguments: JSON.stringify(obj) });
+    }
+  }
+  if (calls.length > 0) return calls;
+
+  // Pattern 2: {"name":"tool","arguments":{...}}
   let i = 0;
   while (i < clean.length) {
     if (clean[i] !== "{") { i++; continue; }

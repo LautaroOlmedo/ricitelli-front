@@ -61,16 +61,13 @@ try {
       <!-- Heatmap legend -->
       <div id="legend-panel" class="px-4 py-3 border-b border-border hidden">
         <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Escala</p>
-        <div class="flex items-center gap-1 rounded-md overflow-hidden h-3">
-          <div class="flex-1 h-full rounded-l-sm" style="background:#EF4444;"/>
-          <div class="flex-1 h-full" style="background:#F59E0B;"/>
-          <div class="flex-1 h-full" style="background:#22C55E;"/>
-          <div class="flex-1 h-full rounded-r-sm" style="background:#3B82F6;"/>
-        </div>
+        <div id="legend-gradient" class="flex items-center gap-0 rounded-md overflow-hidden h-3" style="background:linear-gradient(to right,#3B82F6,#22C55E,#F59E0B,#EF4444);"/>
         <div class="flex justify-between mt-1">
-          <span class="text-[9px] text-muted-foreground">Bajo</span>
-          <span class="text-[9px] text-muted-foreground">Óptimo</span>
+          <span id="legend-min" class="text-[9px] text-muted-foreground">Bajo</span>
+          <span id="legend-mid" class="text-[9px] text-muted-foreground">Medio</span>
+          <span id="legend-max" class="text-[9px] text-muted-foreground">Alto</span>
         </div>
+        <p id="legend-unit" class="text-[9px] text-muted-foreground mt-1 text-center"></p>
       </div>
 
       <!-- Error state -->
@@ -117,12 +114,20 @@ try {
       </div>
 
       <!-- Mode pill -->
-      <div class="absolute top-4 left-4 z-1000 flex gap-2">
+      <div class="absolute top-4 left-4 z-1000 flex gap-2 items-center">
         <button id="btn-normal"
           class="rounded-lg px-3 py-1.5 text-[12px] font-semibold shadow-md border transition-colors"
           style="background:#4E0707;color:#F5F0EB;border-color:#4E0707;">Normal</button>
         <button id="btn-heatmap"
           class="rounded-lg px-3 py-1.5 text-[12px] font-semibold shadow-md border border-border bg-card transition-colors hover:bg-muted/60">Mapa de Calor</button>
+        <!-- Weather loading indicator -->
+        <div id="weather-loading" style="display:none;"
+          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium shadow-md border border-border bg-card">
+          <svg class="size-3 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="32" stroke-dashoffset="12" stroke-linecap="round"/>
+          </svg>
+          <span class="text-muted-foreground">Cargando clima…</span>
+        </div>
       </div>
 
       <!-- Infowindow -->
@@ -146,6 +151,10 @@ try {
           <div class="text-center"><p id="iw-ha"  class="font-bold text-base font-display"/><p class="text-[10px] text-muted-foreground">Hectáreas</p></div>
           <div class="text-center"><p id="iw-age" class="font-bold text-base font-display"/><p class="text-[10px] text-muted-foreground">Años cepa</p></div>
           <div class="text-center"><p id="iw-stat" class="font-bold text-base"/><p class="text-[10px] text-muted-foreground">Estado</p></div>
+        </div>
+        <div id="iw-indicator-row" style="display:none;" class="px-4 py-2.5 items-center justify-between border-b border-border">
+          <span id="iw-indicator-label" class="text-[11px] text-muted-foreground font-medium"></span>
+          <span id="iw-indicator-value" class="text-[13px] font-bold font-display"></span>
         </div>
       </div>
 
@@ -268,8 +277,11 @@ try {
         </select>
       </div>
       <div>
-        <label class="text-sm font-medium">Hectáreas</label>
-        <input id="f-ha" type="number" step="0.1" min="0" value="1.0"
+        <label class="text-sm font-medium flex items-center gap-2">
+          Hectáreas
+          <span id="ha-auto-badge" class="hidden text-[9px] font-bold px-1.5 py-0.5 rounded-full" style="background:#22C55E18;color:#16A34A;border:1px solid #22C55E40;">auto</span>
+        </label>
+        <input id="f-ha" type="number" step="0.01" min="0" value="1.0"
           class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
       </div>
       <div>
@@ -326,6 +338,240 @@ try {
   let selectedPlotId: string | null = null;
   let editingPlotId: string | null = null;
   let heatmapMode = false;
+  let activeIndicator: string = "ndvi";
+
+  // ─── Geodesic area (Shoelace on local projection) ────────────
+  function computeHectares(points: [number, number][]): number {
+    if (points.length < 3) return 0;
+    const latMeanRad = (points.reduce((s, p) => s + p[0], 0) / points.length) * Math.PI / 180;
+    const mLat = 111320;
+    const mLng = 111320 * Math.cos(latMeanRad);
+    const xy = points.map(([lat, lng]) => [lat * mLat, lng * mLng] as [number, number]);
+    let area = 0;
+    const n = xy.length;
+    for (let i = 0; i < n; i++) {
+      const [x1, y1] = xy[i];
+      const [x2, y2] = xy[(i + 1) % n];
+      area += x1 * y2 - x2 * y1;
+    }
+    return Math.round((Math.abs(area) / 2 / 10000) * 100) / 100;
+  }
+
+  // ─── Indicator config ────────────────────────────────────────
+  type IndicatorCfg = { min: number; max: number; unit: string; minLabel: string; midLabel: string; maxLabel: string; palette: [number,number,number][] };
+  const INDICATOR_CFG: Record<string, IndicatorCfg> = {
+    // palette: stops ordered low→high, each stop = [R,G,B]
+    temperature: {
+      min: -5, max: 45, unit: "°C", minLabel: "-5°C", midLabel: "20°C", maxLabel: "45°C",
+      palette: [[148,0,211],[0,0,255],[0,150,255],[0,255,255],[0,220,0],[200,255,0],[255,255,0],[255,165,0],[255,60,0],[200,0,0]],
+    },
+    moisture: {
+      min: 10, max: 100, unit: "%HR", minLabel: "10%", midLabel: "55%", maxLabel: "100%",
+      palette: [[200,0,0],[255,100,0],[255,200,0],[150,255,50],[0,200,100],[0,150,255],[0,60,255],[80,0,180]],
+    },
+    ndvi: {
+      min: 0, max: 1, unit: "NDVI", minLabel: "0.0", midLabel: "0.5", maxLabel: "1.0",
+      palette: [[180,50,0],[220,120,0],[255,220,0],[120,200,0],[0,160,0],[0,100,0]],
+    },
+    maturity: {
+      min: 0, max: 100, unit: "%", minLabel: "0%", midLabel: "50%", maxLabel: "100%",
+      palette: [[100,0,180],[0,80,255],[0,200,200],[0,200,0],[200,220,0],[255,160,0],[200,0,0]],
+    },
+  };
+
+  function paletteRGB(t: number, palette: [number,number,number][]): [number,number,number] {
+    const n = palette.length - 1;
+    const pos = Math.max(0, Math.min(1, t)) * n;
+    const i = Math.min(Math.floor(pos), n - 1);
+    const f = pos - i;
+    const a = palette[i], b = palette[i + 1];
+    return [
+      Math.round(a[0] + f * (b[0] - a[0])),
+      Math.round(a[1] + f * (b[1] - a[1])),
+      Math.round(a[2] + f * (b[2] - a[2])),
+    ];
+  }
+  function paletteCSS(t: number, cfg: IndicatorCfg): string {
+    const [r,g,b] = paletteRGB(t, cfg.palette);
+    return `rgb(${r},${g},${b})`;
+  }
+  function heatColor(value: number, cfg: IndicatorCfg): string {
+    return paletteCSS(Math.max(0, Math.min(1, (value - cfg.min) / (cfg.max - cfg.min))), cfg);
+  }
+
+  // ─── Weather canvas overlay (IDW interpolation) ──────────────
+  // Resolution: one sample per RES screen pixels → blurry/smooth look
+  const CANVAS_RES = 6;
+  let _canvasEl: HTMLCanvasElement | null = null;
+  let _canvasVisible = false;
+
+  function getOrCreateCanvas(): HTMLCanvasElement {
+    if (!_canvasEl) {
+      _canvasEl = document.createElement("canvas");
+      _canvasEl.style.cssText = "position:absolute;top:0;left:0;pointer-events:none;image-rendering:pixelated;";
+      // Insert BEFORE leaflet-map-pane so all Leaflet layers (markers, polygons) render on top
+      const mapPane = map.getContainer().querySelector(".leaflet-map-pane");
+      map.getContainer().insertBefore(_canvasEl, mapPane);
+      map.on("moveend zoomend resize", () => { if (_canvasVisible) renderWeatherCanvas(); });
+    }
+    return _canvasEl;
+  }
+
+  function showCanvas() { _canvasVisible = true; if (_canvasEl) _canvasEl.style.display = "block"; }
+  function hideCanvas() { _canvasVisible = false; if (_canvasEl) _canvasEl.style.display = "none"; }
+
+  // Render full-map IDW heatmap
+  function renderWeatherCanvas(pts?: Array<{lat:number;lng:number;value:number}>, cfg?: IndicatorCfg) {
+    if (!map || !_L) return;
+    const canvas  = getOrCreateCanvas();
+    const container = map.getContainer() as HTMLElement;
+    const W = container.offsetWidth;
+    const H = container.offsetHeight;
+    canvas.style.width  = W + "px";
+    canvas.style.height = H + "px";
+
+    const cw = Math.ceil(W / CANVAS_RES);
+    const ch = Math.ceil(H / CANVAS_RES);
+    canvas.width  = cw;
+    canvas.height = ch;
+
+    const points = pts ?? _lastWeatherPts;
+    const icfg   = cfg ?? _lastWeatherCfg;
+    if (!points?.length || !icfg) return;
+
+    // Adaptive normalization: stretch palette to actual data range
+    // with a minimum spread so subtle variations are visible
+    const rawMin = Math.min(...points.map(p => p.value));
+    const rawMax = Math.max(...points.map(p => p.value));
+    const spread = Math.max(rawMax - rawMin, (icfg.max - icfg.min) * 0.08);
+    const mid    = (rawMin + rawMax) / 2;
+    const normMin = mid - spread / 2;
+    const normMax = mid + spread / 2;
+
+    const ctx = canvas.getContext("2d")!;
+    const img = ctx.createImageData(cw, ch);
+
+    for (let py = 0; py < ch; py++) {
+      for (let px = 0; px < cw; px++) {
+        const ll  = map.containerPointToLatLng([px * CANVAS_RES + CANVAS_RES / 2, py * CANVAS_RES + CANVAS_RES / 2]);
+        let num = 0, den = 0;
+        for (const p of points) {
+          const d2 = (ll.lat - p.lat) ** 2 + (ll.lng - p.lng) ** 2;
+          if (d2 < 1e-12) { num = p.value * 1e12; den = 1e12; break; }
+          const w = 1 / d2;
+          num += w * p.value; den += w;
+        }
+        const val = den ? num / den : normMin;
+        const t   = Math.max(0, Math.min(1, (val - normMin) / (normMax - normMin)));
+        const [r, g, b] = paletteRGB(t, icfg.palette);
+        const i = (py * cw + px) * 4;
+        img.data[i]   = r;
+        img.data[i+1] = g;
+        img.data[i+2] = b;
+        img.data[i+3] = 110;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    showCanvas();
+  }
+
+  // Cache last rendered data so map pan/zoom can re-render
+  let _lastWeatherPts: Array<{lat:number;lng:number;value:number}> | null = null;
+  let _lastWeatherCfg: IndicatorCfg | null = null;
+
+  // ─── Fetch grid from Open-Meteo ──────────────────────────────
+  let _weatherPending = false;
+
+  async function fetchWeatherGrid(indicator: "temperature" | "moisture") {
+    if (_weatherPending) return;
+    _weatherPending = true;
+    setWeatherLoadingUI(true);
+
+    // Grid siempre grande (±8° ≈ 1600km) — captura gradientes regionales sin importar el zoom
+    const center = map.getCenter();
+    const SPAN   = 8.0;
+    const STEPS  = 7;
+    const grid: Array<{lat: number; lng: number}> = [];
+    for (let r = 0; r < STEPS; r++) {
+      for (let c = 0; c < STEPS; c++) {
+        grid.push({
+          lat: center.lat - SPAN + (r / (STEPS - 1)) * 2 * SPAN,
+          lng: center.lng - SPAN + (c / (STEPS - 1)) * 2 * SPAN,
+        });
+      }
+    }
+
+    const results = await Promise.allSettled(
+      grid.map(async ({ lat, lng }) => {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=temperature_2m,relative_humidity_2m&forecast_days=1&timezone=auto`;
+        const res  = await fetch(url);
+        const data = await res.json();
+        const value = indicator === "temperature"
+          ? data.current.temperature_2m
+          : data.current.relative_humidity_2m;
+        return { lat, lng, value: value as number };
+      })
+    );
+
+    const pts = results
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => (r as PromiseFulfilledResult<{lat:number;lng:number;value:number}>).value);
+
+    _weatherPending = false;
+    setWeatherLoadingUI(false);
+
+    if (!pts.length) return;
+    const cfg = INDICATOR_CFG[indicator];
+    _lastWeatherPts = pts;
+    _lastWeatherCfg = cfg;
+    renderWeatherCanvas(pts, cfg);
+    updateStyles();
+    renderIndicatorMarkers();
+    if (_currentPlot) openInfowindow(_plots.find((p) => p.id === _currentPlot!.id) ?? _currentPlot);
+  }
+
+  // Keep a per-plot weather value for infowindow (nearest grid point)
+  function nearestGridValue(plot: Plot): number | null {
+    if (!_lastWeatherPts?.length) return null;
+    const c = plotCentroid(plot);
+    if (!c) return null;
+    let best = Infinity, val = 0;
+    for (const p of _lastWeatherPts) {
+      const d = (c[0] - p.lat) ** 2 + (c[1] - p.lng) ** 2;
+      if (d < best) { best = d; val = p.value; }
+    }
+    return val;
+  }
+
+  function setWeatherLoadingUI(loading: boolean) {
+    const el = document.getElementById("weather-loading");
+    if (el) el.style.display = loading ? "flex" : "none";
+  }
+
+  function plotCentroid(plot: Plot): [number, number] | null {
+    if (!plot.polygon?.length) return null;
+    const lat = plot.polygon.reduce((s, p) => s + p.lat, 0) / plot.polygon.length;
+    const lng = plot.polygon.reduce((s, p) => s + p.lng, 0) / plot.polygon.length;
+    return [lat, lng];
+  }
+
+  // ─── Deterministic fallback for non-weather indicators ───────
+  function strHash(s: string): number {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+  function indicatorValue(plot: Plot, indicator: string): number {
+    const cfg = INDICATOR_CFG[indicator];
+    if (!cfg) return 0;
+    // For weather indicators use nearest grid point
+    if (indicator === "temperature" || indicator === "moisture") {
+      const v = nearestGridValue(plot);
+      if (v !== null) return v;
+    }
+    const seed = strHash(plot.id + indicator);
+    return cfg.min + ((seed % 1000) / 1000) * (cfg.max - cfg.min);
+  }
 
   // AI highlight state
   let aiHighlightedIds: string[] = [];
@@ -400,8 +646,71 @@ try {
     });
   }
 
+  // ─── Indicator label markers ─────────────────────────────────
+  let indicatorMarkers: any[] = [];
+
+  function clearIndicatorMarkers() {
+    indicatorMarkers.forEach((m) => m.remove());
+    indicatorMarkers = [];
+  }
+
+  function renderIndicatorMarkers() {
+    clearIndicatorMarkers();
+    if (!heatmapMode || !_L) return;
+    const cfg = INDICATOR_CFG[activeIndicator];
+    if (!cfg) return;
+
+    polygonLayers.forEach(({ layer, plot }) => {
+      const val   = indicatorValue(plot, activeIndicator);
+      const color = heatColor(val, cfg);
+      const isReal = (activeIndicator === "temperature" || activeIndicator === "moisture") && nearestGridValue(plot) !== null;
+      const label = `${val.toFixed(1)}${cfg.unit}`;
+
+
+      const icon = _L.divIcon({
+        className: "",
+        html: `<div style="
+          background:rgba(8,8,8,0.88);
+          backdrop-filter:blur(8px);
+          -webkit-backdrop-filter:blur(8px);
+          border-radius:12px;
+          padding:7px 13px 6px;
+          white-space:nowrap;
+          box-shadow:0 4px 18px rgba(0,0,0,0.6);
+          border:1.5px solid ${color}55;
+          font-family:Inter,sans-serif;
+          text-align:center;
+          min-width:70px;
+        ">
+          <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.08em;margin-bottom:1px;">${plot.name}</div>
+          <div style="font-size:18px;font-weight:900;color:${color};line-height:1.1;letter-spacing:-.5px;">${label}</div>
+          ${isReal ? `<div style="font-size:8px;color:rgba(255,255,255,0.28);margin-top:2px;letter-spacing:.04em;">en vivo 🌐</div>` : `<div style="font-size:8px;color:rgba(255,255,255,0.2);margin-top:2px;">estimado</div>`}
+        </div>`,
+        iconAnchor: [43, 36],
+      });
+
+      const center = layer.getBounds().getCenter();
+      const marker = _L.marker(center, { icon, interactive: false, zIndexOffset: 500 }).addTo(map);
+      indicatorMarkers.push(marker);
+    });
+  }
+
   // ─── Polygon rendering ───────────────────────────────────────
-  function clearPolygons() { polygonLayers.forEach(({ layer }) => layer.remove()); polygonLayers = []; }
+  let nameLabelMarkers: any[] = [];
+
+  function clearPolygons() {
+    polygonLayers.forEach(({ layer }) => layer.remove());
+    polygonLayers = [];
+    nameLabelMarkers.forEach((m) => m.remove());
+    nameLabelMarkers = [];
+  }
+
+  function updateNameLabels() {
+    nameLabelMarkers.forEach((m) => {
+      const el = m.getElement?.();
+      if (el) el.style.display = heatmapMode ? "none" : "";
+    });
+  }
 
   function renderPolygons(plots: Plot[], L: any) {
     clearPolygons();
@@ -415,24 +724,35 @@ try {
         html: `<div style="background:rgba(28,8,8,0.75);color:#F5F0EB;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;font-family:Inter,sans-serif;">${plot.name}</div>`,
         iconAnchor: [30, 10],
       });
-      L.marker(layer.getBounds().getCenter(), { icon: lbl, interactive: false }).addTo(map);
+      const nameMarker = L.marker(layer.getBounds().getCenter(), { icon: lbl, interactive: false }).addTo(map);
+      nameLabelMarkers.push(nameMarker);
       layer.on("click", () => openInfowindow(plot));
       layer.on("mouseover", () => { if (plot.id !== selectedPlotId) layer.setStyle({ fillOpacity: 0.65, weight: 2 }); });
       layer.on("mouseout",  () => updateStyles());
       polygonLayers.push({ layer, plot });
     });
     updateStyles();
+    updateNameLabels();
   }
 
   function updateStyles() {
     polygonLayers.forEach(({ layer, plot }) => {
       const sel  = plot.id === selectedPlotId;
       const glow = aiHighlightedIds.includes(plot.id);
-      const fill = plotFill(plot);
       if (glow) {
         layer.setStyle({ fillColor: "#c96442", fillOpacity: 0.60, color: "#c96442", weight: 3, opacity: 1 });
         layer.bringToFront();
+        return;
+      }
+      if (heatmapMode && (activeIndicator === "temperature" || activeIndicator === "moisture")) {
+        // Canvas covers the map — polygons: white border + subtle white fill to stand out
+        layer.setStyle({ fillColor: "#fff", fillOpacity: sel ? 0.18 : 0.10, color: "#fff", weight: sel ? 3.5 : 2.5, opacity: 1, dashArray: sel ? "" : "6 4" });
+      } else if (heatmapMode) {
+        const cfg  = INDICATOR_CFG[activeIndicator];
+        const fill = cfg ? heatColor(indicatorValue(plot, activeIndicator), cfg) : plotFill(plot);
+        layer.setStyle({ fillColor: fill, fillOpacity: sel ? 0.85 : 0.65, color: sel ? "#fff" : fill, weight: sel ? 2.5 : 1.5, opacity: 0.9 });
       } else {
+        const fill = plotFill(plot);
         layer.setStyle({ fillColor: fill, fillOpacity: sel ? 0.75 : 0.45, color: sel ? "#f5f4ed" : fill, weight: sel ? 2.5 : 1.5, opacity: 0.9 });
       }
     });
@@ -450,6 +770,20 @@ try {
     const statEl = document.getElementById("iw-stat")!;
     statEl.textContent = plot.status === "healthy" ? "✓ OK" : plot.status === "attention" ? "⚠" : "✗";
     statEl.style.color = plotFill(plot);
+    // Indicator row
+    const iwRow = document.getElementById("iw-indicator-row") as HTMLElement;
+    if (heatmapMode) {
+      const cfg = INDICATOR_CFG[activeIndicator];
+      const val = indicatorValue(plot, activeIndicator);
+      document.getElementById("iw-indicator-label")!.textContent = cfg ? `${activeIndicator === "temperature" ? "Temperatura" : activeIndicator === "moisture" ? "Humedad" : activeIndicator === "ndvi" ? "NDVI" : "Maduración"}` : activeIndicator;
+      const valEl = document.getElementById("iw-indicator-value") as HTMLElement;
+      const isReal = (activeIndicator === "temperature" || activeIndicator === "moisture") && nearestGridValue(plot) !== null;
+      valEl.textContent = cfg ? `${val.toFixed(1)} ${cfg.unit}${isReal ? " 🌐" : " ~"}` : String(val);
+      valEl.style.color = cfg ? heatColor(val, cfg) : "";
+      iwRow.style.display = "flex";
+    } else {
+      iwRow.style.display = "none";
+    }
     document.getElementById("infowindow")!.classList.remove("hidden");
     document.querySelectorAll<HTMLElement>(".plot-list-item").forEach((b) => {
       const a = b.dataset.plotId === plot.id;
@@ -523,6 +857,8 @@ try {
     updatePolyStatus();
     showModal(modal);
   }
+
+  fHa.addEventListener("input", () => document.getElementById("ha-auto-badge")!.classList.add("hidden"));
 
   document.getElementById("btn-new-plot")!.addEventListener("click", openNewForm);
   document.getElementById("iw-edit")!.addEventListener("click", () => { if (_currentPlot) openEditForm(_currentPlot); });
@@ -609,9 +945,19 @@ try {
   function finishDraw() {
     if (drawPoints.length >= 3) {
       pendingPolygon = drawPoints.map(([lat, lng]) => ({ lat, lng }));
-      // Keep the view on what was drawn so the user can verify it
       if (_L && map) {
         map.fitBounds(_L.latLngBounds(drawPoints).pad(0.25));
+      }
+      // Auto-fill hectares from polygon area
+      const ha = computeHectares(drawPoints);
+      if (ha > 0) {
+        restoreFormState();
+        fHa.value = String(ha);
+        document.getElementById("ha-auto-badge")!.classList.remove("hidden");
+        stopDraw();
+        updatePolyStatus();
+        showModal(modal);
+        return;
       }
     }
     stopDraw();
@@ -675,22 +1021,64 @@ try {
   document.getElementById("draw-cancel-draw")!.addEventListener("click", () => { stopDraw(); showModal(modal); });
 
   // ─── Heatmap mode ────────────────────────────────────────────
+  function updateLegend(indicator: string) {
+    const cfg = INDICATOR_CFG[indicator];
+    if (!cfg) return;
+    const stops = cfg.palette.map((c, i) => {
+      const pct = Math.round((i / (cfg.palette.length - 1)) * 100);
+      return `rgb(${c[0]},${c[1]},${c[2]}) ${pct}%`;
+    }).join(", ");
+    (document.getElementById("legend-gradient") as HTMLElement).style.background = `linear-gradient(to right, ${stops})`;
+    document.getElementById("legend-min")!.textContent  = cfg.minLabel;
+    document.getElementById("legend-mid")!.textContent  = cfg.midLabel;
+    document.getElementById("legend-max")!.textContent  = cfg.maxLabel;
+    document.getElementById("legend-unit")!.textContent = cfg.unit;
+  }
+
+  function activateIndicator(indicator: string) {
+    activeIndicator = indicator;
+    updateLegend(indicator);
+
+    const isWeather = indicator === "temperature" || indicator === "moisture";
+    if (isWeather) {
+      _lastWeatherPts = null;
+      _lastWeatherCfg = null;
+      clearIndicatorMarkers();
+      fetchWeatherGrid(indicator as "temperature" | "moisture");
+    } else {
+      hideCanvas();
+      _lastWeatherPts = null;
+      _lastWeatherCfg = null;
+      renderIndicatorMarkers();
+    }
+    updateStyles();
+  }
+
   document.getElementById("btn-normal")!.addEventListener("click", () => {
     heatmapMode = false;
+    hideCanvas();
+    clearIndicatorMarkers();
+    updateNameLabels();
     document.getElementById("legend-panel")!.classList.add("hidden");
     document.getElementById("btn-normal")!.style.cssText  = "background:#4E0707;color:#F5F0EB;border-color:#4E0707;";
     document.getElementById("btn-heatmap")!.style.cssText = "";
+    updateStyles();
   });
   document.getElementById("btn-heatmap")!.addEventListener("click", () => {
     heatmapMode = true;
+    updateLegend(activeIndicator);
     document.getElementById("legend-panel")!.classList.remove("hidden");
     document.getElementById("btn-heatmap")!.style.cssText = "background:#4E0707;color:#F5F0EB;border-color:#4E0707;";
     document.getElementById("btn-normal")!.style.cssText  = "";
+    updateNameLabels();
+    activateIndicator(activeIndicator);
+    renderIndicatorMarkers();
   });
   document.getElementById("btn-mode-toggle")!.addEventListener("click", () => document.getElementById("btn-heatmap")!.click());
   document.querySelectorAll<HTMLElement>(".indicator-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!heatmapMode) document.getElementById("btn-heatmap")!.click();
+      activateIndicator(btn.dataset.indicator ?? "ndvi");
       document.querySelectorAll<HTMLElement>(".indicator-btn").forEach((b) => {
         b.style.background  = b === btn ? "#4E070710" : "";
         b.style.borderColor = b === btn ? "#4E0707"   : "";
@@ -703,7 +1091,7 @@ try {
   async function reloadMap() {
     try { _plots = await apiGetPlots(); } catch { _plots = []; }
     renderList(_plots);
-    if (_L) renderPolygons(_plots, _L);
+    if (_L) { renderPolygons(_plots, _L); renderIndicatorMarkers(); }
   }
 
   async function initMap() {

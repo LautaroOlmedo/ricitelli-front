@@ -8,6 +8,7 @@ import {
   deactivateCustomer,
   placeOrder,
   getOrdersByCustomer,
+  searchCustomersBySocialReason,
 } from "@/lib/grpc/customerClient";
 import { getSaleOrders, getSaleOrderByID } from "@/lib/grpc/saleOrderClient";
 import {
@@ -27,6 +28,7 @@ import {
   getDrySupplies,
   getStockTricapa,
   addStock,
+  createDrySupply,
 } from "@/lib/grpc/drySupplyClient";
 import {
   getInventoryReport,
@@ -94,7 +96,28 @@ export async function executeTool(name: string, args: any): Promise<string> {
       return JSON.stringify(r);
     }
 
+    // ── UI: formulario inline ────────────────────────────────
+    // El frontend intercepta __form__ y renderiza el formulario sin llamar gRPC.
+    case "solicitar_datos": {
+      return JSON.stringify({
+        __form__: true,
+        title: args.title ?? "Completar datos",
+        submit_label: args.submit_label ?? "Confirmar",
+        next_tool: args.next_tool ?? "",
+        fields: args.fields ?? [],
+      });
+    }
+
     // ── Insumos Secos ────────────────────────────────────────
+    case "crear_insumo": {
+      if (!args?.code || !args?.name || !args?.category || !args?.unit)
+        throw new Error("code, name, category y unit son requeridos");
+      const r = await createDrySupply(
+        args.code, args.name, args.category, args.unit,
+        Number(args.reorder_point ?? 0), tok
+      );
+      return JSON.stringify({ ok: true, ...r });
+    }
     case "listar_insumos": {
       const r = await getDrySupplies(tok);
       return JSON.stringify(r);
@@ -154,6 +177,11 @@ export async function executeTool(name: string, args: any): Promise<string> {
         market_type: args.market_type,
         group: args.group,
       }, tok);
+      return JSON.stringify(r);
+    }
+    case "buscar_cliente": {
+      if (!args?.query) throw new Error("se requiere el campo 'query'");
+      const r = await searchCustomersBySocialReason(args.query, tok);
       return JSON.stringify(r);
     }
     case "desactivar_cliente": {

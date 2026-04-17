@@ -21,18 +21,32 @@ try {
   loadError = e.details ?? e.message ?? "Error al cargar";
 }
 
-const categoryLabel: Record<string, string> = {
-  LABEL: "Etiqueta", CONTRAETIQUETA: "Contraetiqueta", BOX: "Caja de cartón",
-  CORK: "Corcho", CAPSULE: "Cápsula", BOTTLE: "Botella", OTHER: "Otro",
+const categoryMeta: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  LABEL:          { label: "Etiqueta",       color: "#3B82F6", bg: "rgba(59,130,246,0.08)",  icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" },
+  CONTRAETIQUETA: { label: "Contraetiqueta", color: "#A855F7", bg: "rgba(168,85,247,0.08)",  icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+  BOX:            { label: "Caja",            color: "#B8860B", bg: "rgba(184,134,11,0.08)",  icon: "M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" },
+  CORK:           { label: "Corcho",          color: "#556B2F", bg: "rgba(85,107,47,0.08)",   icon: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" },
+  CAPSULE:        { label: "Cápsula",         color: "#EF4444", bg: "rgba(239,68,68,0.08)",   icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+  BOTTLE:         { label: "Botella",         color: "#4E0707", bg: "rgba(78,7,7,0.08)",      icon: "M9 3v11.5a3.5 3.5 0 007 0V3M9 3h7M9 3H7M16 3h2" },
+  OTHER:          { label: "Otro",            color: "#8B7355", bg: "rgba(139,115,85,0.08)",  icon: "M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" },
 };
+
+const meta = supply ? (categoryMeta[supply.category] ?? categoryMeta.OTHER) : categoryMeta.OTHER;
+const isLow = tricapa && supply?.reorder_point > 0 && tricapa.available_stock < supply.reorder_point;
+const committedPct = tricapa && tricapa.physical_stock > 0
+  ? Math.min(Math.round((tricapa.committed_stock / tricapa.physical_stock) * 100), 100)
+  : 0;
+const reorderPct = tricapa && supply?.reorder_point > 0
+  ? Math.min(Math.round((tricapa.available_stock / supply.reorder_point) * 100), 100)
+  : 0;
 ---
 
 <AppLayout title={supply?.name ?? "Insumo"}>
-  <div class="px-8 py-8 max-w-3xl mx-auto">
+  <div class="px-6 py-8 max-w-5xl mx-auto">
 
     {loadError && (
-      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
-        <p class="text-sm text-destructive">{loadError}</p>
+      <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-10 text-center">
+        <p class="text-sm text-destructive font-medium">{loadError}</p>
         <a href="/dry-supplies" class="mt-4 inline-flex text-sm text-primary hover:underline">← Volver a insumos</a>
       </div>
     )}
@@ -41,65 +55,311 @@ const categoryLabel: Record<string, string> = {
       <>
         <!-- Breadcrumb -->
         <nav class="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-          <a href="/dry-supplies" class="hover:text-foreground transition-colors">Insumos</a>
+          <a href="/dry-supplies" class="hover:text-foreground transition-colors">Insumos Secos</a>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
             <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span class="text-foreground font-medium">{supply.name}</span>
+          <span class="text-foreground font-medium truncate max-w-xs">{supply.name}</span>
         </nav>
 
-        <!-- Header -->
-        <div class="flex items-start justify-between mb-8">
-          <div>
-            <div class="flex items-center gap-3 mb-1">
-              <h1 class="text-2xl font-semibold tracking-tight">{supply.name}</h1>
+        <!-- ── Hero Card ──────────────────────────────────── -->
+        <div class="rounded-2xl border border-border overflow-hidden mb-6"
+          style={`background: linear-gradient(135deg, ${meta.bg} 0%, transparent 60%);`}>
+          <div class="p-6 flex flex-col sm:flex-row sm:items-center gap-6">
+
+            <!-- Icon -->
+            <div class="size-20 rounded-2xl flex items-center justify-center shrink-0 shadow-inner"
+              style={`background:${meta.color}18; border:2px solid ${meta.color}30;`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="size-10"
+                style={`color:${meta.color};`}>
+                <path d={meta.icon} stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
             </div>
-            <div class="flex items-center gap-3 text-sm text-muted-foreground">
-              <code class="font-mono text-xs bg-muted px-2 py-0.5 rounded">{supply.code}</code>
-              <span>{categoryLabel[supply.category] ?? supply.category}</span>
-              <span>·</span>
-              <span>{supply.unit}</span>
-              {supply.reorder_point > 0 && (
-                <span class="inline-flex items-center rounded-md px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 text-xs font-medium">
-                  Reorden: {supply.reorder_point}
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <span class="text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md"
+                  style={`background:${meta.color}18; color:${meta.color};`}>
+                  {meta.label}
                 </span>
-              )}
+                {isLow && (
+                  <span class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md animate-pulse"
+                    style="background:rgba(239,68,68,0.15); color:#EF4444; border:1px solid rgba(239,68,68,0.3);">
+                    ⚠ Stock bajo
+                  </span>
+                )}
+              </div>
+              <h1 class="text-2xl font-bold tracking-tight leading-tight">{supply.name}</h1>
+              <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
+                <code class="font-mono text-xs bg-muted/60 px-2 py-0.5 rounded border border-border">{supply.code}</code>
+                <span>·</span>
+                <span>{supply.unit}</span>
+                {supply.reorder_point > 0 && (
+                  <>
+                    <span>·</span>
+                    <span class="inline-flex items-center gap-1 text-xs">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5 text-amber-500">
+                        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      Reorden: <strong class="text-foreground">{supply.reorder_point.toLocaleString("es-AR")}</strong>
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+              <button id="btn-add-stock"
+                class="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={`background:${meta.color}; color:#fff;`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-4">
+                  <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+                </svg>
+                Agregar Stock
+              </button>
+              <a href={`/dry-supplies/edit?id=${supply.id}`}
+                class="inline-flex items-center justify-center gap-2 rounded-xl border border-input bg-background px-4 py-2.5 text-sm font-medium hover:bg-muted/60 transition-colors">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Editar
+              </a>
             </div>
           </div>
-
-          <a
-            href={`/dry-supplies/edit?id=${supply.id}`}
-            class="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3.5 py-2 text-sm font-medium hover:bg-accent transition-colors"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-4">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Editar
-          </a>
         </div>
 
-        <!-- Stock Tricapa -->
-        {tricapa && (
-          <div class="grid grid-cols-3 gap-4 mb-8">
-            {[
-              { label: "Stock Físico",      value: tricapa.physical_stock, color: "" },
-              { label: "Comprometido",      value: tricapa.committed_stock, color: "text-amber-600" },
-              { label: "Disponible",        value: tricapa.available_stock,
-                color: supply.reorder_point > 0 && tricapa.available_stock < supply.reorder_point
-                  ? "text-destructive" : "text-green-600" },
-            ].map(({ label, value, color }) => (
-              <div class="rounded-xl border border-border bg-card p-5">
-                <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-                <p class:list={["mt-2 text-3xl font-bold tracking-tight", color || ""]}>
-                  {value.toLocaleString("es-AR")}
-                </p>
-                <p class="text-xs text-muted-foreground mt-1">{supply.unit}</p>
+        <!-- ── Stock Tricapa ──────────────────────────────── -->
+        {tricapa ? (
+          <>
+            <div class="grid grid-cols-3 gap-4 mb-6">
+              {([
+                {
+                  label: "Stock Físico",
+                  value: tricapa.physical_stock,
+                  sub: "total ingresado",
+                  icon: "M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4",
+                  color: meta.color,
+                  bg: meta.bg,
+                },
+                {
+                  label: "Comprometido",
+                  value: tricapa.committed_stock,
+                  sub: "en órdenes activas",
+                  icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
+                  color: "#B8860B",
+                  bg: "rgba(184,134,11,0.08)",
+                },
+                {
+                  label: "Disponible",
+                  value: tricapa.available_stock,
+                  sub: isLow ? "⚠ bajo punto de reorden" : "listo para usar",
+                  icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+                  color: isLow ? "#EF4444" : "#22C55E",
+                  bg: isLow ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
+                },
+              ].map(({ label, value, sub, icon, color, bg }) => (
+                <div class="rounded-xl border border-border p-5 flex flex-col gap-2 transition-shadow hover:shadow-sm"
+                  style={`background: linear-gradient(135deg, ${bg} 0%, transparent 100%);`}>
+                  <div class="flex items-center justify-between">
+                    <p class="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+                    <div class="size-7 rounded-lg flex items-center justify-center"
+                      style={`background:${color}18;`}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5"
+                        style={`color:${color};`}>
+                        <path d={icon} stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <p class="text-3xl font-bold tracking-tight font-display" style={`color:${color};`}>
+                    {value.toLocaleString("es-AR")}
+                  </p>
+                  <p class="text-[11px] text-muted-foreground leading-tight">{sub}</p>
+                </div>
+              )))}
+            </div>
+
+            <!-- Progress bars -->
+            <div class="rounded-xl border border-border bg-card p-5 mb-6 space-y-4">
+              <h3 class="text-sm font-semibold">Distribución de stock</h3>
+
+              <!-- Committed bar -->
+              <div>
+                <div class="flex justify-between items-center mb-1.5">
+                  <span class="text-xs text-muted-foreground">Comprometido sobre físico</span>
+                  <span class="text-xs font-semibold" style="color:#B8860B;">{committedPct}%</span>
+                </div>
+                <div class="h-2 rounded-full overflow-hidden bg-muted">
+                  <div class="h-full rounded-full transition-all duration-700"
+                    style={`width:${committedPct}%; background:#B8860B;`}/>
+                </div>
               </div>
-            ))}
+
+              <!-- Reorder bar (only if reorder_point > 0) -->
+              {supply.reorder_point > 0 && (
+                <div>
+                  <div class="flex justify-between items-center mb-1.5">
+                    <span class="text-xs text-muted-foreground">Disponible vs punto de reorden ({supply.reorder_point.toLocaleString("es-AR")})</span>
+                    <span class="text-xs font-semibold" style={`color:${isLow ? "#EF4444" : "#22C55E"};`}>
+                      {reorderPct}%
+                    </span>
+                  </div>
+                  <div class="h-2 rounded-full overflow-hidden bg-muted">
+                    <div class="h-full rounded-full transition-all duration-700"
+                      style={`width:${Math.min(reorderPct, 100)}%; background:${isLow ? "#EF4444" : "#22C55E"};`}/>
+                  </div>
+                  {isLow && (
+                    <p class="text-[11px] text-destructive mt-1 font-medium">
+                      Falta {(supply.reorder_point - tricapa.available_stock).toLocaleString("es-AR")} unidades para alcanzar el punto de reorden
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+          </>
+        ) : (
+          <div class="rounded-xl border border-dashed border-border bg-muted/20 p-10 text-center mb-6">
+            <p class="text-sm text-muted-foreground">No hay datos de stock disponibles para este insumo.</p>
+            <button id="btn-add-stock"
+              class="mt-4 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition-colors"
+              style={`background:${meta.color}; color:#fff;`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="size-4">
+                <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+              </svg>
+              Agregar Stock inicial
+            </button>
           </div>
         )}
+
+        <!-- ── Back link ──────────────────────────────────── -->
+        <div class="flex items-center justify-between text-xs text-muted-foreground pt-2">
+          <a href="/dry-supplies" class="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-3.5">
+              <path d="M19 12H5M12 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Volver a insumos
+          </a>
+          <span class="font-mono opacity-50">{supply.id}</span>
+        </div>
       </>
     )}
   </div>
 </AppLayout>
+
+<!-- ── Modal acción de stock ─────────────────────────────── -->
+<div id="stock-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm">
+  <div class="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+    <!-- Header -->
+    <div id="modal-header" class="px-6 pt-6 pb-4 border-b border-border">
+      <div class="flex items-center gap-3">
+        <div id="modal-icon-wrap" class="size-10 rounded-xl flex items-center justify-center">
+          <svg id="modal-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="size-5">
+            <path id="modal-icon-path" d="M12 5v14M5 12h14" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h2 id="modal-title" class="text-base font-semibold"></h2>
+          <p id="modal-supply-name" class="text-xs text-muted-foreground mt-0.5 truncate max-w-50"></p>
+        </div>
+      </div>
+    </div>
+    <!-- Body -->
+    <div class="px-6 py-5 space-y-4">
+      <div>
+        <label for="modal-qty" class="text-sm font-medium">Cantidad <span class="text-destructive">*</span></label>
+        <input id="modal-qty" type="number" min="1" value="100"
+          class="mt-1.5 w-full rounded-lg border border-input bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <div>
+        <label for="modal-ref" class="text-sm font-medium">Referencia <span class="text-muted-foreground font-normal">(opcional)</span></label>
+        <input id="modal-ref" type="text" placeholder="ej: OC-2025-001"
+          class="mt-1.5 w-full rounded-lg border border-input bg-background px-3.5 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"/>
+      </div>
+      <p id="modal-error" class="hidden text-xs text-destructive bg-destructive/5 px-3 py-2 rounded-lg"></p>
+    </div>
+    <!-- Footer -->
+    <div class="px-6 pb-6 flex gap-2">
+      <button id="modal-cancel"
+        class="flex-1 rounded-lg border border-input bg-background px-4 py-2.5 text-sm font-medium hover:bg-muted/60 transition-colors">
+        Cancelar
+      </button>
+      <button id="modal-confirm"
+        class="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+        >Confirmar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const supplyId = new URLSearchParams(window.location.search).get("id") ?? "";
+  const supplyName = document.querySelector("h1")?.textContent ?? "";
+
+  const modal        = document.getElementById("stock-modal")!;
+  const modalName    = document.getElementById("modal-supply-name")!;
+  const modalQty     = document.getElementById("modal-qty") as HTMLInputElement;
+  const modalRef     = document.getElementById("modal-ref") as HTMLInputElement;
+  const modalError   = document.getElementById("modal-error")!;
+  const modalConfirm = document.getElementById("modal-confirm")!;
+
+  function openModal() {
+    modalName.textContent = supplyName;
+    modalError.classList.add("hidden");
+    modalQty.value = "100";
+    modalRef.value = "";
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    setTimeout(() => modalQty.focus(), 50);
+  }
+
+  function closeModal() {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+
+  document.querySelectorAll<HTMLElement>("#btn-add-stock, #btn-add-stock-empty").forEach((btn) => {
+    btn.addEventListener("click", openModal);
+  });
+
+  document.getElementById("modal-cancel")!.addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+
+  modalConfirm.addEventListener("click", async () => {
+    if (!supplyId) return;
+    const qty = parseInt(modalQty.value, 10);
+    if (!qty || qty < 1) {
+      modalError.textContent = "La cantidad debe ser mayor a 0.";
+      modalError.classList.remove("hidden");
+      return;
+    }
+    modalConfirm.textContent = "Procesando…";
+    (modalConfirm as HTMLButtonElement).disabled = true;
+
+    try {
+      const res = await fetch(`/api/dry-supplies/${supplyId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: qty, reference: modalRef.value.trim() || "manual" }),
+      });
+      if (res.ok) {
+        closeModal();
+        window.location.reload();
+      } else {
+        const body = await res.json().catch(() => ({}));
+        modalError.textContent = body.error ?? `Error ${res.status}`;
+        modalError.classList.remove("hidden");
+        modalConfirm.textContent = "Confirmar";
+        (modalConfirm as HTMLButtonElement).disabled = false;
+      }
+    } catch {
+      modalError.textContent = "Error de red. Verificá la conexión.";
+      modalError.classList.remove("hidden");
+      modalConfirm.textContent = "Confirmar";
+      (modalConfirm as HTMLButtonElement).disabled = false;
+    }
+  });
+</script>
