@@ -1,0 +1,31 @@
+---
+const pathname = Astro.url.pathname;
+const section = Astro.url.searchParams.get("section") ?? "";
+const links = [
+  { href: "/admin", label: "Inicio", active: pathname === "/admin" },
+  { href: "/admin/sales/invoices", label: "Facturación", active: pathname.includes("/sales/invoices") },
+  { href: "/admin/sales/remittances", label: "Remitos", active: pathname.includes("/sales/remittances") },
+  { href: "/admin/sales/receipts", label: "Cobranzas", active: pathname.includes("/sales/receipts") },
+  { href: "/admin/purchasing?section=needs", label: "Compras", active: pathname.includes("/purchasing") && (!section || section === "needs" || section === "quotes" || section === "invoices") },
+  { href: "/admin/purchasing?section=suppliers", label: "Proveedores", active: pathname.includes("/purchasing") && section === "suppliers" },
+  { href: "/admin/purchasing?section=payments", label: "Pagos", active: pathname.includes("/purchasing") && section === "payments" },
+  { href: "/admin/tax", label: "IVA", active: pathname.includes("/tax") },
+  { href: "/reports", label: "Reportes", active: false },
+];
+---
+
+<nav aria-label="Navegación administrativa" class="sticky top-0 z-30 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-8">
+  <div class="flex max-w-350 gap-2 overflow-x-auto">
+    {links.map((link) => (
+      <a
+        href={link.href}
+        class:list={[
+          "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors",
+          link.active ? "bg-primary text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:text-foreground",
+        ]}
+      >
+        {link.label}
+      </a>
+    ))}
+  </div>
+</nav>

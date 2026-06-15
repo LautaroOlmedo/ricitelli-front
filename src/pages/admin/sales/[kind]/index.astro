@@ -1,0 +1,43 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import AdminNav from "@/components/admin/AdminNav.astro";
+import StatusBadge from "@/components/admin/StatusBadge.astro";
+import { COOKIE_NAME } from "@/lib/auth";
+import { getCustomers } from "@/lib/grpc/customerClient";
+import { listSalesDocuments, listRemittances, getSalesInvoiceOutstandingBalance } from "@/lib/grpc/salesAdministrationClient";
+import type { ListSalesAdministrationFilters, SalesDocumentKind } from "@/lib/grpc/salesAdministrationTypes";
+
+const config = {
+  invoices: { title: "Facturas de venta", singular: "factura", create: "Nueva factura", help: "Controlá emisión, vencimientos, saldos y entregas." },
+  remittances: { title: "Remitos", singular: "remito", create: "Nuevo remito", help: "Prepará entregas y confirmalas cuando la mercadería salga." },
+  receipts: { title: "Cobranzas", singular: "cobranza", create: "Registrar cobranza", help: "Registrá pagos y seguí aplicaciones parciales." },
+} as const;
+const kind = Astro.params.kind as SalesDocumentKind;
+if (!config[kind]) return Astro.redirect("/admin");
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+const filters: ListSalesAdministrationFilters = { customer_id: Astro.url.searchParams.get("customer_id") ?? "", sale_order_id: Astro.url.searchParams.get("sale_order_id") ?? "", status: Astro.url.searchParams.get("status") ?? "" };
+let documents:any[] = [], customers:any[] = [], remittances:any[] = [], error="";
+try { [documents, customers, remittances] = await Promise.all([listSalesDocuments(kind, filters, token), getCustomers(token), kind === "invoices" ? listRemittances({}, token) : Promise.resolve([])]); } catch(e:any){ error=e.message; }
+const names = Object.fromEntries(customers.map(c=>[c.id,c.social_reason]));
+const balanceEntries = kind === "invoices" ? await Promise.all(documents.map(async d=>{ try{return [d.id,(await getSalesInvoiceOutstandingBalance(d.id,token)).outstanding_balance]}catch{return [d.id,"0"]}})) : [];
+const balances = Object.fromEntries(balanceEntries);
+const stateOptions = kind === "remittances" ? [["","Todos los estados"],["DRAFT","Pendientes de confirmar"],["CONFIRMED","Confirmados"]] : kind === "receipts" ? [["","Todos los estados"],["DRAFT","Pendientes de contabilizar"],["POSTED","Contabilizados"]] : [["","Todos los estados"],["DRAFT","Borradores"],["ISSUED","Emitidas"]];
+const money=(v:any,c="ARS")=>new Intl.NumberFormat("es-AR",{style:"currency",currency:c,maximumFractionDigits:2}).format(Number(v||0));
+const short=(v:string)=>v ? `${v.slice(0,8)}…` : "—";
+const c=config[kind];
+---
+<AppLayout title={c.title}>
+  <AdminNav />
+  <div class="mx-auto max-w-350 space-y-6 px-4 py-7 sm:px-8">
+    <header class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p class="text-xs font-semibold uppercase tracking-[.2em] text-primary">Ventas y facturación</p><h1 class="mt-2 text-3xl font-display">{c.title}</h1><p class="mt-1 text-sm text-muted-foreground">{c.help}</p></div><a href={`/admin/sales/${kind}/new`} class="rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground">{c.create}</a></header>
+    <form method="get" class="grid gap-3 rounded-2xl border border-border bg-card p-4 md:grid-cols-4">
+      <select name="customer_id" class="rounded-lg border border-input bg-background px-3 py-2 text-sm"><option value="">Todos los clientes</option>{customers.map(x=><option value={x.id} selected={filters.customer_id===x.id}>{x.social_reason}</option>)}</select>
+      {kind!=="receipts" && <input name="sale_order_id" value={filters.sale_order_id} placeholder="Pedido de venta" class="rounded-lg border border-input bg-background px-3 py-2 text-sm" />}
+      <select name="status" class="rounded-lg border border-input bg-background px-3 py-2 text-sm">{stateOptions.map(([value,label])=><option value={value} selected={filters.status===value}>{label}</option>)}</select>
+      <div class="flex gap-2"><button class="flex-1 rounded-lg bg-secondary px-4 py-2 text-sm font-semibold">Aplicar filtros</button><a href={`/admin/sales/${kind}`} class="rounded-lg border border-border px-3 py-2 text-sm">Limpiar</a></div>
+    </form>
+    {error ? <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div> : documents.length===0 ? <div class="rounded-2xl border border-dashed border-border bg-card p-12 text-center"><p class="font-semibold">No hay {c.title.toLowerCase()} para mostrar</p><p class="mt-1 text-sm text-muted-foreground">Probá otros filtros o creá el primer documento.</p></div> :
+    <div class="overflow-x-auto rounded-2xl border border-border bg-card"><table class="w-full min-w-240 text-sm"><thead class="bg-muted/40 text-left text-xs text-muted-foreground"><tr><th class="p-4">Documento</th><th class="p-4">Cliente</th>{kind!=="receipts"&&<th class="p-4">Pedido</th>}<th class="p-4">Fecha</th>{kind==="invoices"&&<th class="p-4">Vencimiento</th>}<th class="p-4">Estado</th><th class="p-4 text-right">{kind==="remittances"?"Cantidad":kind==="receipts"?"Importe":"Total / saldo"}</th><th class="p-4">Acciones</th></tr></thead>
+    <tbody class="divide-y divide-border">{documents.map(d=><tr class="align-top hover:bg-muted/20"><td class="p-4"><a class="font-semibold text-primary hover:underline" href={`/admin/sales/${kind}/${d.id}`}>{kind==="receipts"?"Recibo":"Comprobante"} {d.document_number||d.receipt_number}</a><span class="mt-1 block text-[11px] text-muted-foreground">{d.currency||""}</span></td><td class="p-4 font-medium">{names[d.customer_id]||short(d.customer_id)}</td>{kind!=="receipts"&&<td class="p-4 text-xs text-muted-foreground">{short(d.sale_order_id)}</td>}<td class="p-4">{d.issue_date||d.receipt_date||"—"}</td>{kind==="invoices"&&<td class:list={["p-4", balances[d.id]!=="0"&&d.due_date<new Date().toISOString().slice(0,10)?"font-semibold text-destructive":""]}>{d.due_date||"—"}</td>}<td class="p-4"><StatusBadge status={d.status}/>{kind==="invoices"&&d.status==="ISSUED"&&!remittances.some(r=>r.sales_invoice_id===d.id&&r.status==="CONFIRMED")&&<div class="mt-1"><StatusBadge label="Pendiente de remitir" status="OPEN"/></div>}</td><td class="p-4 text-right">{kind==="remittances"?<span>{d.items?.reduce((s:number,x:any)=>s+Number(x.quantity||0),0)} unidades</span>:<><span class="block font-semibold">{money(d.total_amount||d.amount,d.currency)}</span>{kind==="invoices"&&<span class="text-xs text-muted-foreground">Saldo {money(balances[d.id],d.currency)}</span>}</>}</td><td class="p-4"><div class="flex flex-wrap gap-2"><a href={`/admin/sales/${kind}/${d.id}`} class="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold">Ver</a>{kind==="invoices"&&d.status==="ISSUED"&&<><a href={`/admin/sales/remittances/new?invoice=${d.id}`} class="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold">Generar remito</a><a href={`/admin/sales/receipts/new?invoice=${d.id}`} class="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold">Cobrar</a></>}{kind==="remittances"&&d.status==="DRAFT"&&<a href={`/admin/sales/remittances/${d.id}`} class="rounded-lg bg-primary px-2.5 py-1.5 text-xs font-semibold text-primary-foreground">Confirmar</a>}</div></td></tr>)}</tbody></table></div>}
+  </div>
+</AppLayout>

@@ -1,0 +1,113 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import AdminNav from "@/components/admin/AdminNav.astro";
+import MetricCard from "@/components/admin/MetricCard.astro";
+import StatusBadge from "@/components/admin/StatusBadge.astro";
+import { COOKIE_NAME } from "@/lib/auth";
+import { listSalesInvoices, listRemittances, listCustomerReceipts, getSalesInvoiceOutstandingBalance } from "@/lib/grpc/salesAdministrationClient";
+import { listPurchaseNeeds, listSupplierInvoices, listSupplierPayments, getMonthlyVATPosition } from "@/lib/grpc/purchasingAdministrationClient";
+
+const token = Astro.cookies.get(COOKIE_NAME)?.value;
+const month = new Date().toISOString().slice(0, 7);
+const money = (value: number, currency = "ARS") => new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 2 }).format(value || 0);
+const num = (value: unknown) => Number(value || 0);
+let error = "";
+let invoices:any[] = [], remittances:any[] = [], receipts:any[] = [], needs:any[] = [], supplierInvoices:any[] = [], payments:any[] = [], vat:any = null;
+try {
+  [invoices, remittances, receipts, needs, supplierInvoices, payments, vat] = await Promise.all([
+    listSalesInvoices({}, token), listRemittances({}, token), listCustomerReceipts({}, token),
+    listPurchaseNeeds(token), listSupplierInvoices("", token), listSupplierPayments("", token), getMonthlyVATPosition(month, token),
+  ]);
+} catch (e:any) { error = e.message; }
+
+const monthInvoices = invoices.filter(i => i.issue_date?.startsWith(month) && i.status !== "DRAFT");
+const monthReceipts = receipts.filter(r => r.receipt_date?.startsWith(month) && r.status === "POSTED");
+const monthPayments = payments.filter(p => p.payment_date?.startsWith(month) && p.status === "POSTED");
+const balances = await Promise.all(invoices.filter(i => i.status !== "DRAFT" && i.status !== "CANCELLED").map(async i => {
+  try { return { invoice:i, balance:num((await getSalesInvoiceOutstandingBalance(i.id, token)).outstanding_balance) }; } catch { return { invoice:i, balance:0 }; }
+}));
+const outstanding = balances.reduce((sum, row) => sum + row.balance, 0);
+const overdue = balances.filter(row => row.balance > 0 && row.invoice.due_date && row.invoice.due_date < new Date().toISOString().slice(0,10));
+const pendingRemitInvoices = invoices.filter(i => i.status === "ISSUED" && !remittances.some(r => r.sales_invoice_id === i.id && r.status === "CONFIRMED"));
+const pendingRemittances = remittances.filter(r => r.status === "DRAFT");
+const pendingNeeds = needs.filter(n => !["PURCHASED","CANCELLED"].includes(n.status));
+const pendingSupplierInvoices = supplierInvoices.filter(i => i.status === "ISSUED");
+const totalSales = monthInvoices.reduce((s,i) => s + num(i.total_amount), 0);
+const collected = monthReceipts.reduce((s,r) => s + num(r.amount), 0);
+const paid = monthPayments.reduce((s,p) => s + num(p.amount), 0);
+const pendingItems = [
+  { label: "Facturas vencidas", count: overdue.length, href: "/admin/sales/invoices?status=ISSUED", detail: "Revisar y registrar cobranza" },
+  { label: "Facturas sin remitir", count: pendingRemitInvoices.length, href: "/admin/sales/invoices", detail: "Preparar entrega" },
+  { label: "Remitos por confirmar", count: pendingRemittances.length, href: "/admin/sales/remittances?status=DRAFT", detail: "La confirmación descuenta stock" },
+  { label: "Necesidades de compra", count: pendingNeeds.length, href: "/admin/purchasing?section=needs", detail: "Cotizar o actualizar estado" },
+  { label: "Facturas de proveedor pendientes", count: pendingSupplierInvoices.length, href: "/admin/purchasing?section=invoices", detail: "Revisar próximos pagos" },
+];
+---
+<AppLayout title="Administración">
+  <AdminNav />
+  <div class="mx-auto max-w-350 space-y-8 px-4 py-7 sm:px-8">
+    <header class="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[.2em] text-primary">Administración de bodega</p>
+        <h1 class="mt-2 text-3xl font-display">Qué necesita atención</h1>
+        <p class="mt-2 max-w-2xl text-sm text-muted-foreground">Resumen operativo de ventas, entregas, cobranzas, compras e IVA del período {month}.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="/admin/sales/invoices/new" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Nueva factura</a>
+        <a href="/admin/sales/remittances/new" class="rounded-lg border border-border bg-card px-4 py-2 text-sm font-semibold">Nuevo remito</a>
+        <a href="/admin/sales/receipts/new" class="rounded-lg border border-border bg-card px-4 py-2 text-sm font-semibold">Registrar cobranza</a>
+      </div>
+    </header>
+
+    {error && <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">No fue posible cargar todos los datos: {error}</div>}
+
+    <section>
+      <div class="mb-4 flex items-end justify-between"><div><h2 class="text-lg font-semibold">Resumen del mes</h2><p class="text-xs text-muted-foreground">Importes principales y saldos que requieren seguimiento.</p></div></div>
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Ventas facturadas" value={money(totalSales)} detail={`${monthInvoices.length} facturas emitidas`} href="/admin/sales/invoices" />
+        <MetricCard label="Cobrado" value={money(collected)} detail={`${monthReceipts.length} cobranzas contabilizadas`} href="/admin/sales/receipts" />
+        <MetricCard label="Pendiente de cobro" value={money(outstanding)} detail={`${balances.filter(b=>b.balance>0).length} facturas con saldo`} href="/admin/sales/invoices" tone="alert" />
+        <MetricCard label="Pendiente de remitir" value={`${pendingRemitInvoices.length}`} detail="facturas emitidas sin entrega confirmada" href="/admin/sales/remittances" tone="alert" />
+        <MetricCard label="IVA débito" value={money(num(vat?.sales_debit_total))} detail="IVA ventas del período" href={`/admin/tax?month=${month}`} />
+        <MetricCard label="IVA crédito" value={money(num(vat?.purchase_credit_total))} detail="IVA compras del período" href={`/admin/tax?month=${month}`} />
+        <MetricCard label="Saldo neto de IVA" value={money(num(vat?.net_vat))} detail="Posición del período" href={`/admin/tax?month=${month}`} />
+        <MetricCard label="Pagado a proveedores" value={money(paid)} detail={`${pendingSupplierInvoices.length} facturas pendientes`} href="/admin/purchasing?section=payments" />
+      </div>
+    </section>
+
+    <div class="grid gap-6 xl:grid-cols-[1.25fr_.75fr]">
+      <section class="rounded-2xl border border-border bg-card p-5 shadow-(--shadow-ring)">
+        <h2 class="text-lg font-semibold">Pendientes importantes</h2>
+        <div class="mt-4 divide-y divide-border">
+          {pendingItems.map(item => <a href={item.href} class="flex items-center gap-4 py-4 hover:bg-muted/20">
+            <span class:list={["flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold", item.count ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground"]}>{item.count}</span>
+            <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">{item.label}</span><span class="block truncate text-xs text-muted-foreground">{item.detail}</span></span>
+            <span class="text-primary">→</span>
+          </a>)}
+        </div>
+      </section>
+      <section class="rounded-2xl border border-border bg-card p-5 shadow-(--shadow-ring)">
+        <h2 class="text-lg font-semibold">Acciones rápidas</h2>
+        <div class="mt-4 grid gap-2">
+          {[
+            ["Nueva necesidad de compra","/admin/purchasing?section=needs&new=1"],
+            ["Nuevo proveedor","/admin/purchasing?section=suppliers&new=1"],
+            ["Registrar pago","/admin/purchasing?section=payments&new=1"],
+            ["Ver posición de IVA",`/admin/tax?month=${month}`],
+            ["Ver reportes","/reports"],
+          ].map(([label,href]) => <a href={href} class="flex items-center justify-between rounded-xl border border-border px-4 py-3 text-sm font-semibold hover:bg-secondary/60">{label}<span class="text-primary">→</span></a>)}
+        </div>
+      </section>
+    </div>
+
+    <section class="space-y-4">
+      <div><h2 class="text-lg font-semibold">Circuitos administrativos</h2><p class="text-xs text-muted-foreground">Cada documento tiene un propósito distinto. Seguí el circuito sin perder trazabilidad.</p></div>
+      <div class="grid gap-4 lg:grid-cols-2">
+        {[
+          { title:"Ventas", steps:[["Pedido","/sale-orders","Origen comercial"],["Factura","/admin/sales/invoices",`${pendingRemitInvoices.length} sin remitir`],["Remito","/admin/sales/remittances",`${pendingRemittances.length} por confirmar`],["Cobranza","/admin/sales/receipts",`${overdue.length} vencidas`]] },
+          { title:"Compras", steps:[["Necesidad","/admin/purchasing?section=needs",`${pendingNeeds.length} abiertas`],["Cotización","/admin/purchasing?section=quotes","Comparar opciones"],["Factura proveedor","/admin/purchasing?section=invoices",`${pendingSupplierInvoices.length} pendientes`],["Pago","/admin/purchasing?section=payments","Cerrar saldo"]] },
+        ].map(flow => <article class="rounded-2xl border border-border bg-card p-5"><h3 class="font-semibold">{flow.title}</h3><div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{flow.steps.map(([name,href,detail],index)=><a href={href} class="relative rounded-xl border border-border bg-background p-3 hover:border-primary/40"><span class="text-[10px] font-bold text-primary">PASO {index+1}</span><span class="mt-1 block text-sm font-semibold">{name}</span><span class="mt-1 block text-[11px] text-muted-foreground">{detail}</span></a>)}</div></article>)}
+      </div>
+    </section>
+  </div>
+</AppLayout>

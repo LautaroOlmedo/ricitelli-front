@@ -1,0 +1,12 @@
+---
+interface Props { label: string; value: string; detail?: string; href?: string; tone?: "default" | "alert"; }
+const { label, value, detail = "", href = "#", tone = "default" } = Astro.props;
+---
+<a href={href} class:list={["group rounded-2xl border bg-card p-5 shadow-(--shadow-ring) transition hover:-translate-y-0.5 hover:shadow-lg", tone === "alert" ? "border-primary/30" : "border-border"]}>
+  <div class="flex items-start justify-between gap-3">
+    <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+    <span class="text-primary transition-transform group-hover:translate-x-0.5">→</span>
+  </div>
+  <p class="mt-3 text-2xl font-semibold tracking-tight">{value}</p>
+  {detail && <p class="mt-1 text-xs text-muted-foreground">{detail}</p>}
+</a>

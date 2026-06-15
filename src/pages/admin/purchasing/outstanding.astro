@@ -1,0 +1,10 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+import { COOKIE_NAME } from "@/lib/auth";
+import { getSupplierOutstandingBalance, getSupplier } from "@/lib/grpc/purchasingAdministrationClient";
+const supplierId = Astro.url.searchParams.get("supplier_id") ?? "";
+const currency = Astro.url.searchParams.get("currency") ?? "ARS";
+let balance: any = null, supplier: any = null, error = "";
+try { [balance, supplier] = await Promise.all([getSupplierOutstandingBalance(supplierId, currency, Astro.cookies.get(COOKIE_NAME)?.value), getSupplier(supplierId, Astro.cookies.get(COOKIE_NAME)?.value)]); } catch (e: any) { error = e.message; }
+---
+<AppLayout title="Saldo de proveedor"><div class="p-8 max-w-5xl space-y-6"><a href="/admin/purchasing#payments" class="text-sm text-primary hover:underline">← Volver a pagos</a><header><h1 class="text-3xl font-display">Saldo de proveedor</h1><p class="text-sm text-muted-foreground mt-2">{supplier?.trade_name || supplier?.social_reason || supplierId} · {currency}</p></header>{error && <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-destructive">{error}</div>}{balance && <><div class="rounded-xl border border-border bg-card p-6"><p class="text-xs uppercase text-muted-foreground">Total pendiente</p><p class="mt-2 text-3xl font-semibold font-mono">{balance.currency} {balance.total_outstanding}</p></div><div class="rounded-xl border border-border bg-card overflow-hidden"><table class="w-full text-sm"><thead class="bg-muted/40"><tr><th class="p-3 text-left">Factura</th><th class="p-3 text-left">Fecha</th><th class="p-3 text-right">Total</th><th class="p-3 text-right">Aplicado</th><th class="p-3 text-right">Pendiente</th></tr></thead><tbody class="divide-y divide-border">{balance.invoices.map((i:any)=><tr><td class="p-3">{i.document_type} {i.point_of_sale}-{i.document_number}</td><td class="p-3">{i.issue_date}</td><td class="p-3 text-right font-mono">{i.total_amount}</td><td class="p-3 text-right font-mono">{i.allocated_amount}</td><td class="p-3 text-right font-mono font-semibold">{i.outstanding_amount}</td></tr>)}</tbody></table></div></>}</div></AppLayout>

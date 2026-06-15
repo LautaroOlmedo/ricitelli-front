@@ -36,13 +36,6 @@ const columns = [
     badge:   { bg: "#2563EB18", color: "#1D4ED8" },
   },
   {
-    status:  "INVOICED",
-    label:   "Facturado",
-    accent:  "#B8860B",
-    bgLight: "rgba(184,134,11,0.06)",
-    badge:   { bg: "#B8860B18", color: "#92690A" },
-  },
-  {
     status:  "READY_TO_DISPATCH",
     label:   "Listo p/ Despacho",
     accent:  "#0F766E",
@@ -50,11 +43,20 @@ const columns = [
     badge:   { bg: "#0F766E18", color: "#0D6B63" },
   },
   {
+    status:  "INVOICED",
+    label:   "Facturado",
+    accent:  "#B8860B",
+    bgLight: "rgba(184,134,11,0.06)",
+    badge:   { bg: "#B8860B18", color: "#92690A" },
+    legacy:  true,
+  },
+  {
     status:  "DISPATCHED",
     label:   "Despachado",
     accent:  "#556B2F",
     bgLight: "rgba(85,107,47,0.06)",
     badge:   { bg: "#556B2F18", color: "#3D5022" },
+    legacy:  true,
   },
   {
     status:  "CANCELLED",
@@ -88,7 +90,7 @@ const currencySymbol: Record<string, string> = {
     <div class="flex items-center justify-between shrink-0">
       <div>
         <h1 class="text-xl font-bold tracking-tight font-display">Kanban — Pedidos de Venta</h1>
-        <p id="total-label" class="text-xs text-muted-foreground mt-0.5">{orders.length} pedido{orders.length !== 1 ? "s" : ""} · arrastrá para cambiar estado</p>
+        <p id="total-label" class="text-xs text-muted-foreground mt-0.5">{orders.length} pedido{orders.length !== 1 ? "s" : ""} · arrastrá entre estados operativos editables</p>
       </div>
       <div class="flex items-center gap-2">
         <a href="/sale-orders"
@@ -155,6 +157,13 @@ const currencySymbol: Record<string, string> = {
       <div class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive shrink-0">{error}</div>
     )}
 
+    <div class="rounded-lg border border-amber-300/50 bg-amber-50 px-4 py-3 text-xs text-amber-950 shrink-0 flex items-start gap-2">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="size-4 shrink-0 mt-0.5">
+        <path d="M12 9v4M12 17h.01M10.3 4.5L2.8 18a2 2 0 001.75 3h14.9a2 2 0 001.75-3L13.7 4.5a2 2 0 00-3.4 0z" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <p><strong>Facturado</strong> y <strong>Despachado</strong> son estados operativos legados de solo lectura. Las futuras facturas y remitos serán documentos vinculados, no estados del pedido.</p>
+    </div>
+
     <!-- Toast -->
     <div id="toast" style="display:none;" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl border border-border bg-card shadow-xl px-5 py-3 text-sm font-medium items-center gap-2.5 min-w-65">
       <span id="toast-icon"></span>
@@ -169,14 +178,18 @@ const currencySymbol: Record<string, string> = {
           <div
             class="kanban-column shrink-0 w-72 rounded-xl border border-border flex flex-col overflow-hidden"
             data-status={col.status}
+            data-legacy={col.legacy ? "true" : "false"}
             style={`background:${col.bgLight}; border-top: 3px solid ${col.accent};`}
           >
             <!-- Column header -->
             <div class="px-4 py-3 border-b border-border flex items-center justify-between"
               style={`background: ${col.accent}10;`}>
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 min-w-0">
                 <span class="size-2 rounded-full shrink-0" style={`background:${col.accent};`}></span>
-                <span class="text-[13px] font-bold tracking-wide" style={`color:${col.accent};`}>{col.label}</span>
+                <div class="min-w-0">
+                  <span class="block text-[13px] font-bold tracking-wide" style={`color:${col.accent};`}>{col.label}</span>
+                  {col.legacy && <span class="block text-[9px] uppercase tracking-wider text-muted-foreground">Legado · solo lectura</span>}
+                </div>
               </div>
               <span
                 class="kanban-count inline-flex items-center justify-center rounded-full size-6 text-[11px] font-bold border"
@@ -189,6 +202,7 @@ const currencySymbol: Record<string, string> = {
             <div
               class="kanban-drop-zone p-3 space-y-2.5 flex-1 min-h-0 overflow-y-auto transition-colors duration-150"
               data-status={col.status}
+              data-legacy={col.legacy ? "true" : "false"}
             >
               {colOrders.length === 0 && (
                 <div class="drop-hint flex items-center justify-center h-20 rounded-lg border-2 border-dashed border-border/60">
@@ -197,8 +211,11 @@ const currencySymbol: Record<string, string> = {
               )}
               {colOrders.map((o) => (
                 <div
-                  class="kanban-card group rounded-xl border border-border bg-card p-3.5 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-border/80 transition-all duration-150 select-none"
-                  draggable="true"
+                  class:list={[
+                    "kanban-card group rounded-xl border border-border bg-card p-3.5 hover:shadow-md hover:border-border/80 transition-all duration-150 select-none",
+                    col.legacy ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
+                  ]}
+                  draggable={!col.legacy}
                   data-order-id={o.id}
                   data-status={col.status}
                   data-search={`${(customerMap[o.customer_id] ?? "").toLowerCase()} ${o.id.toLowerCase()}`}
@@ -245,12 +262,20 @@ const currencySymbol: Record<string, string> = {
                     )}
                   </div>
 
+                  {col.legacy && (
+                    <p class="mt-2.5 rounded-md bg-muted/50 px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
+                      Estado histórico. Consultá el pedido para ver los futuros documentos vinculados.
+                    </p>
+                  )}
+
                   <!-- Drag handle indicator -->
-                  <div class="mt-2.5 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg viewBox="0 0 24 6" fill="currentColor" class="size-4 text-muted-foreground/50">
-                      <circle cx="4" cy="3" r="1.5"/><circle cx="12" cy="3" r="1.5"/><circle cx="20" cy="3" r="1.5"/>
-                    </svg>
-                  </div>
+                  {!col.legacy && (
+                    <div class="mt-2.5 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg viewBox="0 0 24 6" fill="currentColor" class="size-4 text-muted-foreground/50">
+                        <circle cx="4" cy="3" r="1.5"/><circle cx="12" cy="3" r="1.5"/><circle cx="20" cy="3" r="1.5"/>
+                      </svg>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -266,18 +291,18 @@ const currencySymbol: Record<string, string> = {
   const COLUMN_META = {
     NEW:               { label: "Nuevo",              accent: "#64748B" },
     CONFIRMED:         { label: "Confirmado",         accent: "#2563EB" },
-    INVOICED:          { label: "Facturado",          accent: "#B8860B" },
+    INVOICED:          { label: "Facturado (legado)", accent: "#B8860B" },
     READY_TO_DISPATCH: { label: "Listo p/ Despacho",  accent: "#0F766E" },
-    DISPATCHED:        { label: "Despachado",          accent: "#556B2F" },
+    DISPATCHED:        { label: "Despachado (legado)", accent: "#556B2F" },
     CANCELLED:         { label: "Cancelado",           accent: "#9B1C1C" },
   };
 
   // ── Valid status transitions ──────────────────────────────────
   const VALID_TRANSITIONS = {
     NEW:               ["CONFIRMED",         "CANCELLED"],
-    CONFIRMED:         ["INVOICED",          "CANCELLED"],
-    INVOICED:          ["READY_TO_DISPATCH", "DISPATCHED", "CANCELLED"],
-    READY_TO_DISPATCH: ["DISPATCHED",        "CANCELLED"],
+    CONFIRMED:         ["READY_TO_DISPATCH", "CANCELLED"],
+    INVOICED:          [],
+    READY_TO_DISPATCH: ["CANCELLED"],
     DISPATCHED:        [],
     CANCELLED:         [],
   };
@@ -329,7 +354,7 @@ const currencySymbol: Record<string, string> = {
       const isFiltered = q || activeMarket !== "Todos" || activeCurrency !== "Todos";
       totalLabel.textContent = isFiltered
         ? `${visibleTotal} de ${totalCards} pedido${totalCards !== 1 ? "s" : ""}`
-        : `${totalCards} pedido${totalCards !== 1 ? "s" : ""} · arrastrá para cambiar estado`;
+        : `${totalCards} pedido${totalCards !== 1 ? "s" : ""} · arrastrá entre estados operativos editables`;
     }
 
     // Clear button
@@ -422,6 +447,8 @@ const currencySymbol: Record<string, string> = {
   }
 
   function bindZone(zone) {
+    if (zone.dataset.legacy === "true") return;
+
     zone.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";

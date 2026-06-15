@@ -35,6 +35,7 @@ function meta(token?: string): grpc.Metadata {
 }
 
 function mapOrder(r: any): SaleOrder {
+  const summary = r.administrative_summary ?? {};
   return {
     id: r.id ?? "",
     customer_id: r.customer_id ?? "",
@@ -45,6 +46,15 @@ function mapOrder(r: any): SaleOrder {
     market: r.market ?? "DOMESTIC",
     destination_country: r.destination_country ?? "",
     sale_type: r.sale_type ?? "SALE",
+    administrative_summary: {
+      total_ordered_quantity: summary.total_ordered_quantity ?? "0",
+      invoiced_quantity: summary.invoiced_quantity ?? "0",
+      remitted_quantity: summary.remitted_quantity ?? "0",
+      pending_invoice_quantity: summary.pending_invoice_quantity ?? "0",
+      pending_remittance_quantity: summary.pending_remittance_quantity ?? "0",
+      linked_invoices: summary.linked_invoices ?? [],
+      linked_remittances: summary.linked_remittances ?? [],
+    },
   };
 }
 

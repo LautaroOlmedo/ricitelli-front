@@ -1,0 +1,28 @@
+---
+import AppLayout from "@/layouts/AppLayout.astro";
+
+const sections = [
+  { kind: "invoices", title: "Facturas de venta", description: "Crear borradores, emitir comprobantes y consultar saldos pendientes." },
+  { kind: "remittances", title: "Remitos", description: "Documentar entregas y confirmar remitos vinculados a pedidos." },
+  { kind: "receipts", title: "Recibos de clientes", description: "Registrar cobranzas, asignarlas a facturas y contabilizarlas." },
+];
+---
+
+<AppLayout title="Administración de ventas">
+  <div class="px-8 py-8 max-w-6xl space-y-7">
+    <header>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary mb-2">Administración</p>
+      <h1 class="text-2xl font-semibold tracking-tight">Ventas y cobranzas</h1>
+      <p class="text-sm text-muted-foreground mt-1">Documentos comerciales conectados al servicio de administración de ventas.</p>
+    </header>
+    <div class="grid gap-4 md:grid-cols-3">
+      {sections.map((section) => (
+        <a href={`/admin/sales/${section.kind}`} class="rounded-xl border border-border bg-card p-6 hover:border-primary/40 hover:bg-muted/20 transition-colors">
+          <h2 class="text-sm font-semibold">{section.title}</h2>
+          <p class="text-xs text-muted-foreground mt-2 leading-relaxed">{section.description}</p>
+          <span class="inline-flex mt-6 text-xs font-medium text-primary">Abrir módulo →</span>
+        </a>
+      ))}
+    </div>
+  </div>
+</AppLayout>

@@ -1,0 +1,19 @@
+---
+interface Props { status?: string; label?: string; }
+const { status = "", label } = Astro.props;
+const key = status.toUpperCase();
+const labels: Record<string, string> = {
+  DRAFT: "Borrador", ISSUED: "Emitida", CONFIRMED: "Confirmado", POSTED: "Contabilizado",
+  CANCELLED: "Anulado", VOIDED: "Anulado", PAID: "Pagado", PARTIALLY_PAID: "Pago parcial",
+  OPEN: "Pendiente", PENDING: "Pendiente", APPROVED: "Aprobado", SELECTED: "Seleccionada",
+  REJECTED: "Rechazada", QUOTING: "Cotizando", PURCHASED: "Comprado", ACTIVE: "Activo",
+};
+const tone = ["PAID","POSTED","CONFIRMED","APPROVED","SELECTED"].includes(key)
+  ? "border-green-700/20 bg-green-700/10 text-green-800"
+  : ["CANCELLED","VOIDED","REJECTED"].includes(key)
+    ? "border-red-700/20 bg-red-700/10 text-red-800"
+    : ["PARTIALLY_PAID","QUOTING"].includes(key)
+      ? "border-amber-700/20 bg-amber-700/10 text-amber-800"
+      : "border-primary/20 bg-primary/8 text-primary";
+---
+<span class:list={["inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold", tone]}>{label ?? labels[key] ?? status}</span>

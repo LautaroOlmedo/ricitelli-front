@@ -55,6 +55,22 @@ export interface SaleOrderItem {
   unit_price: number;
 }
 
+export interface AdministrativeDocumentReference {
+  id: string;
+  document_number: string;
+  status: string;
+}
+
+export interface SaleOrderAdministrativeSummary {
+  total_ordered_quantity: string;
+  invoiced_quantity: string;
+  remitted_quantity: string;
+  pending_invoice_quantity: string;
+  pending_remittance_quantity: string;
+  linked_invoices: AdministrativeDocumentReference[];
+  linked_remittances: AdministrativeDocumentReference[];
+}
+
 export interface SaleOrder {
   id: string;
   customer_id: string;
@@ -65,6 +81,7 @@ export interface SaleOrder {
   market: string;             // DOMESTIC | EXPORT
   destination_country: string;
   sale_type: string;          // SALE | SAMPLE_CUSTOMS | GIFT | INTERNAL | COMMERCIAL_SAMPLE
+  administrative_summary: SaleOrderAdministrativeSummary;
 }
 
 export interface CreateSaleOrderInput {
